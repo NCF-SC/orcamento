@@ -730,51 +730,59 @@
       display: flex;
       align-items: center;
       margin-bottom: 0.85rem;
+      gap: 0.5rem;
     }
 
-    .lock-card .pin-wrap input {
-      width: 100%;
+    .lock-card .pin-wrap input#lock-pass {
+      flex: 1;
+      width: auto;
+      min-width: 0;
       margin-bottom: 0;
-      padding-right: 3rem;
-      font-size: 1.25rem;
-      letter-spacing: 0.2em;
+      padding-right: 0.85rem;
+      font-size: 1.35rem;
+      letter-spacing: 0.28em;
+      -webkit-appearance: none;
+      appearance: none;
     }
 
-    .lock-card .pin-wrap input.masked {
+    .lock-card .pin-wrap input#lock-pass.masked {
       -webkit-text-security: disc;
       text-security: disc;
     }
 
     .eye-btn {
-      position: absolute;
-      right: 0.35rem;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 2.5rem;
-      height: 2.5rem;
+      position: relative;
+      z-index: 5;
+      flex: 0 0 auto;
+      width: 3rem;
+      height: 3rem;
       padding: 0;
-      border: none;
-      border-radius: 8px;
-      background: transparent;
-      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface2);
+      color: var(--text);
       display: grid;
       place-items: center;
       cursor: pointer;
+      font-size: 1.2rem;
+      line-height: 1;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
 
-    .eye-btn:hover {
-      color: var(--text);
-      background: var(--surface2);
+    .eye-btn:active {
+      background: var(--border);
     }
 
     .eye-btn svg {
-      width: 1.25rem;
-      height: 1.25rem;
+      width: 1.35rem;
+      height: 1.35rem;
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+      pointer-events: none;
     }
 
     .lock-card input {
@@ -832,7 +840,7 @@
         <label for="lock-pass">Senha (só números)</label>
         <div class="pin-wrap">
           <input
-            type="tel"
+            type="text"
             id="lock-pass"
             class="masked"
             inputmode="numeric"
@@ -840,10 +848,13 @@
             autocomplete="one-time-code"
             enterkeyhint="done"
             maxlength="12"
-            placeholder="••••••"
+            placeholder="000000"
             aria-label="Senha numérica"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
           >
-          <button type="button" class="eye-btn" id="lock-eye" aria-label="Mostrar senha" aria-pressed="false">
+          <button type="button" class="eye-btn" id="lock-eye" onclick="togglePinVisibility(event)" aria-label="Mostrar senha" aria-pressed="false">
             <svg id="eye-icon-show" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
               <circle cx="12" cy="12" r="3"></circle>
@@ -1413,13 +1424,49 @@
       renderLockScreen();
     }
 
-    async function bootstrapAuth() {
-      sessionStorage.removeItem(SESSION_FLAG);
-      renderLockScreen();
+    function togglePinVisibility(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       const el = document.getElementById("lock-pass");
       const eye = document.getElementById("lock-eye");
       const iconShow = document.getElementById("eye-icon-show");
       const iconHide = document.getElementById("eye-icon-hide");
+      if (!el || !eye) return;
+
+      const showing = !el.classList.contains("masked");
+      if (showing) {
+        el.classList.add("masked");
+        eye.setAttribute("aria-pressed", "false");
+        eye.setAttribute("aria-label", "Mostrar senha");
+        iconShow.classList.remove("hidden");
+        iconHide.classList.add("hidden");
+      } else {
+        el.classList.remove("masked");
+        eye.setAttribute("aria-pressed", "true");
+        eye.setAttribute("aria-label", "Ocultar senha");
+        iconShow.classList.add("hidden");
+        iconHide.classList.remove("hidden");
+      }
+      el.setAttribute("inputmode", "numeric");
+      el.setAttribute("pattern", "[0-9]*");
+      el.focus();
+    }
+
+    async function bootstrapAuth() {
+      sessionStorage.removeItem(SESSION_FLAG);
+      renderLockScreen();
+      const el = document.getElementById("lock-pass");
+
+      el.setAttribute("type", "text");
+      el.setAttribute("inputmode", "numeric");
+      el.setAttribute("pattern", "[0-9]*");
+
+      el.addEventListener("focus", () => {
+        el.setAttribute("inputmode", "numeric");
+        el.setAttribute("pattern", "[0-9]*");
+      });
 
       el.addEventListener("input", () => {
         const start = el.selectionStart;
@@ -1428,24 +1475,6 @@
       });
       el.addEventListener("keydown", e => {
         if (e.key === "Enter") submitLock();
-      });
-
-      eye.addEventListener("click", () => {
-        const showing = !el.classList.contains("masked");
-        if (showing) {
-          el.classList.add("masked");
-          eye.setAttribute("aria-pressed", "false");
-          eye.setAttribute("aria-label", "Mostrar senha");
-          iconShow.classList.remove("hidden");
-          iconHide.classList.add("hidden");
-        } else {
-          el.classList.remove("masked");
-          eye.setAttribute("aria-pressed", "true");
-          eye.setAttribute("aria-label", "Ocultar senha");
-          iconShow.classList.add("hidden");
-          iconHide.classList.remove("hidden");
-        }
-        el.focus();
       });
     }
 
