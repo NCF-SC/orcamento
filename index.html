@@ -882,7 +882,7 @@
       <header>
         <div>
           <h1>Hoje</h1>
-          <p id="daily-date-label">Quanto ainda posso gastar</p>
+          <p id="daily-date-label">Vive agora, paga no próximo mês</p>
         </div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
           <button class="save" onclick="saveChanges()">Salvar</button>
@@ -912,22 +912,23 @@
       </div>
 
       <div class="settings-box">
-        <h3>Orçamento livre do mês</h3>
+        <h3>Quanto posso gastar neste mês</h3>
         <div class="field">
-          <label for="livre-override">Saldo livre para gastar (opcional)</label>
-          <input type="text" id="livre-override" class="money-input" inputmode="numeric" placeholder="Automático = Receita − Fixos">
+          <label for="livre-override">Saldo livre manual (opcional)</label>
+          <input type="text" id="livre-override" class="money-input" inputmode="numeric" placeholder="Automático = sobra do próximo mês">
         </div>
         <div class="field">
           <label for="livre-fim">Até quando (fim do período)</label>
           <input type="date" id="livre-fim">
         </div>
         <p class="settings-hint" id="livre-hint">
-          Se deixar em branco, o saldo livre é Receita − custos fixos da planilha.
-          O valor diário recalcula sozinho: quanto menos gastar, mais sobra para os próximos dias.
+          Você vive neste mês e paga no próximo. O limite automático é a sobra do mês seguinte (Receita − Fixos).
+          Preencha a planilha do próximo mês para o app calcular. Ou informe o valor manual acima.
         </p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
-          <button class="secondary" onclick="showDetail(getDailyContext().year, getDailyContext().mes)">Abrir planilha do mês</button>
+          <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do próximo mês</button>
+          <button class="secondary" onclick="showDetail(getDailyContext().year, getDailyContext().mes)">Abrir este mês</button>
         </div>
       </div>
 
@@ -1529,12 +1530,32 @@
       return { year, mes, month: getYearData(year)[mes] };
     }
 
+    function getNextMonthRef(year, mes) {
+      if (mes === 11) return { year: year + 1, mes: 0 };
+      return { year, mes: mes + 1 };
+    }
+
+    function calcNextMonthSaldo(year, mes) {
+      const next = getNextMonthRef(year, mes);
+      const nextMonth = normalizeMonth(getYearData(next.year)[next.mes]);
+      const t = monthTotals(nextMonth);
+      return {
+        year: next.year,
+        mes: next.mes,
+        receita: t.receita,
+        fixos: t.fixos,
+        saldo: t.receita - t.fixos,
+        hasData: t.receita > 0 || t.fixos > 0
+      };
+    }
+
     function calcDailyBudget(year, mes, asOfISO) {
       const month = normalizeMonth(getYearData(year)[mes]);
-      const t = monthTotals(month);
-      const livreBase = month.orcamentoLivre != null
+      const next = calcNextMonthSaldo(year, mes);
+      const manual = month.orcamentoLivre != null;
+      const livreBase = manual
         ? Number(month.orcamentoLivre)
-        : Math.max(0, t.receita - t.fixos);
+        : Math.max(0, next.saldo);
 
       const gastos = month.gastosDiarios || [];
       const gastoAntes = gastos
@@ -1568,9 +1589,21 @@
         porDia,
         aindaHoje,
         fimISO,
-        receita: t.receita,
-        fixos: t.fixos
+        manual,
+        nextNome: `${MESES_LONGO[next.mes]}/${next.year}`,
+        nextReceita: next.receita,
+        nextFixos: next.fixos,
+        nextSaldo: next.saldo,
+        nextHasData: next.hasData,
+        nextYear: next.year,
+        nextMes: next.mes
       };
+    }
+
+    function openNextMonthPlan() {
+      const { year, mes } = getDailyContext();
+      const next = getNextMonthRef(year, mes);
+      showDetail(next.year, next.mes);
     }
 
     function showDaily() {
@@ -1600,11 +1633,11 @@
 
       document.getElementById("daily-cards").innerHTML = `
         <div class="card">
-          <label>Saldo livre do mês</label>
+          <label>Limite deste mês</label>
           <div class="value positive">${formatMoney(budget.livreBase)}</div>
         </div>
         <div class="card">
-          <label>Já gasto (variável)</label>
+          <label>Já gastou (a pagar)</label>
           <div class="value negative">${formatMoney(budget.gastoAteAgora)}</div>
         </div>
         <div class="card">
@@ -1616,8 +1649,8 @@
           <div class="value">${formatMoney(budget.porDia)}</div>
         </div>
         <div class="card">
-          <label>Receita − Fixos</label>
-          <div class="value">${formatMoney(budget.receita)} − ${formatMoney(budget.fixos)}</div>
+          <label>Sobra de ${budget.nextNome}</label>
+          <div class="value ${budget.nextSaldo >= 0 ? "positive" : "negative"}">${formatMoney(budget.nextSaldo)}</div>
         </div>
         <div class="card">
           <label>Período até</label>
@@ -1634,10 +1667,16 @@
         fimInput.value = budget.fimISO;
       }
 
-      document.getElementById("livre-hint").textContent =
-        month.orcamentoLivre != null
-          ? `Usando saldo livre manual. Se zerar o campo, volta para Receita − Fixos (${formatMoney(Math.max(0, budget.receita - budget.fixos))}).`
-          : `Automático: Receita ${formatMoney(budget.receita)} − Fixos ${formatMoney(budget.fixos)} = ${formatMoney(Math.max(0, budget.receita - budget.fixos))}. O não gasto de hoje dilui nos próximos dias.`;
+      if (month.orcamentoLivre != null) {
+        document.getElementById("livre-hint").textContent =
+          `Usando valor manual. A sobra automática de ${budget.nextNome} seria ${formatMoney(budget.nextSaldo)} (Receita ${formatMoney(budget.nextReceita)} − Fixos ${formatMoney(budget.nextFixos)}).`;
+      } else if (!budget.nextHasData) {
+        document.getElementById("livre-hint").textContent =
+          `A planilha de ${budget.nextNome} ainda está vazia. Preencha receita e fixos do próximo mês (ou informe o saldo livre manual) — você vive agora e paga no próximo.`;
+      } else {
+        document.getElementById("livre-hint").textContent =
+          `Limite automático = sobra de ${budget.nextNome}: ${formatMoney(budget.nextReceita)} − ${formatMoney(budget.nextFixos)} = ${formatMoney(budget.nextSaldo)}. Os gastos deste mês consomem essa sobra (pago no próximo).`;
+      }
 
       const todayItems = (month.gastosDiarios || []).filter(g => g.data === hoje).slice().reverse();
       const todayList = document.getElementById("daily-today-list");
