@@ -1,4 +1,4 @@
-const CACHE = "orcamento-v7";
+const CACHE = "orcamento-v8";
 const ASSETS = ["./manifest.json", "./icon.svg", "./restore-pack.json"];
 
 self.addEventListener("install", (event) => {

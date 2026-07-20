@@ -1120,6 +1120,7 @@
     const AUTH_KEY = "orcamento_auth_v1";
     const DATA_KEY = "orcamento_data_enc_v1";
     const SESSION_FLAG = "orcamento_unlocked_v1";
+    const SESSION_PIN = "orcamento_session_pin_v1";
 
     // Senha fixa do dono (hash). Quem tem o link precisa digitar a senha correta.
     const APP_GATE = {
@@ -1429,6 +1430,7 @@
       if (!timingSafeEqualB64(hash, APP_GATE.hash)) throw new Error("Senha incorreta");
       cryptoKey = await deriveKey(pin, salt);
       sessionStorage.setItem(SESSION_FLAG, "1");
+      sessionStorage.setItem(SESSION_PIN, pin);
       await loadDraftFromStorage();
     }
 
@@ -1479,6 +1481,7 @@
       cryptoKey = null;
       appData = {};
       sessionStorage.removeItem(SESSION_FLAG);
+      sessionStorage.removeItem(SESSION_PIN);
       hasUnsavedChanges = false;
       renderLockScreen();
     }
@@ -1514,8 +1517,6 @@
     }
 
     async function bootstrapAuth() {
-      sessionStorage.removeItem(SESSION_FLAG);
-      renderLockScreen();
       const el = document.getElementById("lock-pass");
 
       el.setAttribute("type", "text");
@@ -1535,6 +1536,21 @@
       el.addEventListener("keydown", e => {
         if (e.key === "Enter") submitLock();
       });
+
+      const sessionPin = sessionStorage.getItem(SESSION_PIN);
+      if (sessionStorage.getItem(SESSION_FLAG) === "1" && sessionPin) {
+        try {
+          await unlockWithPin(sessionPin);
+          enterApp();
+          return;
+        } catch {
+          sessionStorage.removeItem(SESSION_FLAG);
+          sessionStorage.removeItem(SESSION_PIN);
+          cryptoKey = null;
+        }
+      }
+
+      renderLockScreen();
     }
 
     function getYearData(year) {
