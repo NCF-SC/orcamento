@@ -975,6 +975,7 @@
         <button class="secondary" onclick="discardChanges()">Descartar alterações</button>
         <button onclick="exportData()">Exportar JSON</button>
         <button class="secondary" onclick="importData()">Importar JSON</button>
+        <button class="secondary" onclick="restoreOriginalPlanilha()">Restaurar planilha original</button>
         <button class="secondary" onclick="clearYear()">Limpar ano</button>
         <span class="save-status" id="save-status-dashboard">Tudo salvo</span>
       </div>
@@ -1339,6 +1340,16 @@
       localStorage.removeItem("orcamento_mensal_version");
     }
 
+    function planilhaTemDados(data) {
+      return Object.keys(data || {}).some(year => {
+        const months = data[year] || [];
+        return months.some(m => {
+          const t = monthTotals(m);
+          return t.receita > 0 || t.fixos > 0 || t.diarios > 0 || t.ativos > 0 || t.passivos > 0;
+        });
+      });
+    }
+
     async function loadDraftFromStorage() {
       const enc = localStorage.getItem(DATA_KEY);
       if (enc && cryptoKey) {
@@ -1360,8 +1371,55 @@
           appData = {};
         }
       }
+
+      if (!planilhaTemDados(appData)) {
+        const restored = await tryRestoreEncryptedBackup();
+        if (restored) {
+          hasUnsavedChanges = false;
+          updateSaveStatus();
+          return;
+        }
+      }
+
       hasUnsavedChanges = false;
       updateSaveStatus();
+    }
+
+    async function tryRestoreEncryptedBackup() {
+      if (!cryptoKey) return false;
+      try {
+        const res = await fetch("./restore-pack.json", { cache: "no-store" });
+        if (!res.ok) return false;
+        const pack = await res.json();
+        const restored = await decryptJson(pack, cryptoKey);
+        if (!planilhaTemDados(restored)) return false;
+        appData = restored;
+        await persistEncrypted();
+        return true;
+      } catch (err) {
+        console.error(err);
+        return false;
+      }
+    }
+
+    async function restoreOriginalPlanilha() {
+      if (!cryptoKey) {
+        alert("Desbloqueie o app primeiro.");
+        return;
+      }
+      if (planilhaTemDados(appData) && !confirm("Isso substitui a planilha atual pelos dados originais (Jan–Jul/2026). Continuar?")) {
+        return;
+      }
+      const ok = await tryRestoreEncryptedBackup();
+      if (!ok) {
+        alert("Não foi possível restaurar. Verifique a conexão e tente de novo.");
+        return;
+      }
+      initYearSelect();
+      if (currentView === "daily") renderDaily();
+      else if (currentView === "detail") renderDetail();
+      else renderDashboard();
+      alert("Planilha original restaurada. Clique em Salvar se quiser gravar de novo.");
     }
 
     async function unlockWithPin(pin) {

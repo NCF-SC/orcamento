@@ -1,5 +1,5 @@
-const CACHE = "orcamento-v6";
-const ASSETS = ["./manifest.json", "./icon.svg"];
+const CACHE = "orcamento-v7";
+const ASSETS = ["./manifest.json", "./icon.svg", "./restore-pack.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
