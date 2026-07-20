@@ -725,6 +725,58 @@
       margin-bottom: 0.35rem;
     }
 
+    .pin-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.85rem;
+    }
+
+    .lock-card .pin-wrap input {
+      width: 100%;
+      margin-bottom: 0;
+      padding-right: 3rem;
+      font-size: 1.25rem;
+      letter-spacing: 0.2em;
+    }
+
+    .lock-card .pin-wrap input.masked {
+      -webkit-text-security: disc;
+      text-security: disc;
+    }
+
+    .eye-btn {
+      position: absolute;
+      right: 0.35rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2.5rem;
+      height: 2.5rem;
+      padding: 0;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
+    .eye-btn:hover {
+      color: var(--text);
+      background: var(--surface2);
+    }
+
+    .eye-btn svg {
+      width: 1.25rem;
+      height: 1.25rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .lock-card input {
       width: 100%;
       background: var(--bg);
@@ -778,7 +830,32 @@
       <p id="lock-desc">Digite a senha numérica para abrir o orçamento.</p>
       <div id="lock-login">
         <label for="lock-pass">Senha (só números)</label>
-        <input type="password" id="lock-pass" inputmode="numeric" pattern="[0-9]*" autocomplete="current-password" maxlength="12">
+        <div class="pin-wrap">
+          <input
+            type="tel"
+            id="lock-pass"
+            class="masked"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="one-time-code"
+            enterkeyhint="done"
+            maxlength="12"
+            placeholder="••••••"
+            aria-label="Senha numérica"
+          >
+          <button type="button" class="eye-btn" id="lock-eye" aria-label="Mostrar senha" aria-pressed="false">
+            <svg id="eye-icon-show" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            <svg id="eye-icon-hide" class="hidden" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.8 21.8 0 0 1 5.06-5.94"></path>
+              <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.9 21.9 0 0 1-2.16 3.19"></path>
+              <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="lock-error" id="lock-error"></div>
       <div class="lock-actions">
@@ -1288,9 +1365,10 @@
     async function submitLock() {
       showLockError("");
       const btn = document.getElementById("lock-submit");
+      const pass = String(document.getElementById("lock-pass").value || "").replace(/\D/g, "").trim();
       btn.disabled = true;
+      btn.textContent = "Verificando...";
       try {
-        const pass = (document.getElementById("lock-pass").value || "").trim();
         if (!pass) {
           showLockError("Digite a senha.");
           return;
@@ -1299,15 +1377,21 @@
           showLockError("A senha deve ter só números.");
           return;
         }
+        if (!window.crypto || !window.crypto.subtle) {
+          showLockError("Este navegador não suporta a proteção. Abra no Chrome.");
+          return;
+        }
         await unlockWithPin(pass);
         enterApp();
       } catch (err) {
-        showLockError("Senha incorreta.");
+        console.error(err);
+        showLockError("Senha incorreta. Confira os números e tente de novo.");
         cryptoKey = null;
         document.getElementById("lock-pass").value = "";
         document.getElementById("lock-pass").focus();
       } finally {
         btn.disabled = false;
+        btn.textContent = "Entrar";
       }
     }
 
@@ -1333,11 +1417,35 @@
       sessionStorage.removeItem(SESSION_FLAG);
       renderLockScreen();
       const el = document.getElementById("lock-pass");
+      const eye = document.getElementById("lock-eye");
+      const iconShow = document.getElementById("eye-icon-show");
+      const iconHide = document.getElementById("eye-icon-hide");
+
       el.addEventListener("input", () => {
-        el.value = el.value.replace(/\D/g, "");
+        const start = el.selectionStart;
+        el.value = String(el.value || "").replace(/\D/g, "");
+        try { el.setSelectionRange(start, start); } catch {}
       });
       el.addEventListener("keydown", e => {
         if (e.key === "Enter") submitLock();
+      });
+
+      eye.addEventListener("click", () => {
+        const showing = !el.classList.contains("masked");
+        if (showing) {
+          el.classList.add("masked");
+          eye.setAttribute("aria-pressed", "false");
+          eye.setAttribute("aria-label", "Mostrar senha");
+          iconShow.classList.remove("hidden");
+          iconHide.classList.add("hidden");
+        } else {
+          el.classList.remove("masked");
+          eye.setAttribute("aria-pressed", "true");
+          eye.setAttribute("aria-label", "Ocultar senha");
+          iconShow.classList.add("hidden");
+          iconHide.classList.remove("hidden");
+        }
+        el.focus();
       });
     }
 
