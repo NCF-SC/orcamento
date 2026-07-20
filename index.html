@@ -774,17 +774,11 @@
 <body class="locked">
   <div id="view-lock" class="lock-screen">
     <div class="lock-card">
-      <h1 id="lock-title">Orçamento</h1>
-      <p id="lock-desc">Protegido por senha. Seus dados ficam criptografados neste aparelho.</p>
-      <div id="lock-create" class="hidden">
-        <label for="lock-pass-new">Criar senha</label>
-        <input type="password" id="lock-pass-new" autocomplete="new-password">
-        <label for="lock-pass-confirm">Confirmar senha</label>
-        <input type="password" id="lock-pass-confirm" autocomplete="new-password">
-      </div>
-      <div id="lock-login" class="hidden">
-        <label for="lock-pass">Senha</label>
-        <input type="password" id="lock-pass" autocomplete="current-password">
+      <h1 id="lock-title">Desbloquear</h1>
+      <p id="lock-desc">Digite a senha numérica para abrir o orçamento.</p>
+      <div id="lock-login">
+        <label for="lock-pass">Senha (só números)</label>
+        <input type="password" id="lock-pass" inputmode="numeric" pattern="[0-9]*" autocomplete="current-password" maxlength="12">
       </div>
       <div class="lock-error" id="lock-error"></div>
       <div class="lock-actions">
@@ -1037,6 +1031,13 @@
     const DATA_KEY = "orcamento_data_enc_v1";
     const SESSION_FLAG = "orcamento_unlocked_v1";
 
+    // Senha fixa do dono (hash). Quem tem o link precisa digitar a senha correta.
+    const APP_GATE = {
+      salt: "XplPIQgJPui2g3A+Nt5DKg==",
+      hash: "Omhmoe02+lFVrrxjzhzwgbMjAA091aW5aM4dqTZ3Oe8=",
+      iterations: 250000
+    };
+
     let currentDetail = { year: null, mes: null };
     let currentView = "daily";
     let appData = {};
@@ -1163,6 +1164,13 @@
       return bytes;
     }
 
+    function timingSafeEqualB64(a, b) {
+      if (a.length !== b.length) return false;
+      let diff = 0;
+      for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+      return diff === 0;
+    }
+
     async function deriveKey(password, saltBytes) {
       const enc = new TextEncoder();
       const baseKey = await crypto.subtle.importKey(
@@ -1173,12 +1181,29 @@
         ["deriveKey"]
       );
       return crypto.subtle.deriveKey(
-        { name: "PBKDF2", salt: saltBytes, iterations: 250000, hash: "SHA-256" },
+        { name: "PBKDF2", salt: saltBytes, iterations: APP_GATE.iterations, hash: "SHA-256" },
         baseKey,
         { name: "AES-GCM", length: 256 },
         false,
         ["encrypt", "decrypt"]
       );
+    }
+
+    async function pinHashB64(pin, saltBytes) {
+      const enc = new TextEncoder();
+      const baseKey = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(pin),
+        "PBKDF2",
+        false,
+        ["deriveBits"]
+      );
+      const bits = await crypto.subtle.deriveBits(
+        { name: "PBKDF2", salt: saltBytes, iterations: APP_GATE.iterations, hash: "SHA-256" },
+        baseKey,
+        256
+      );
+      return bufToB64(bits);
     }
 
     async function encryptJson(obj, key) {
@@ -1195,42 +1220,23 @@
       return JSON.parse(new TextDecoder().decode(plain));
     }
 
-    function getAuthMeta() {
-      try {
-        return JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
-      } catch {
-        return null;
-      }
-    }
-
-    function setAuthMeta(meta) {
-      localStorage.setItem(AUTH_KEY, JSON.stringify(meta));
-    }
-
-    function hasPassword() {
-      return !!getAuthMeta();
-    }
-
     function showLockError(msg) {
       document.getElementById("lock-error").textContent = msg || "";
     }
 
     function renderLockScreen() {
-      const create = !hasPassword();
-      document.getElementById("lock-create").classList.toggle("hidden", !create);
-      document.getElementById("lock-login").classList.toggle("hidden", create);
-      document.getElementById("lock-title").textContent = create ? "Criar senha" : "Desbloquear";
-      document.getElementById("lock-desc").textContent = create
-        ? "Escolha uma senha. Ela criptografa seus dados neste aparelho. Sem a senha, ninguém lê o que você salvar."
-        : "Digite sua senha para abrir o orçamento.";
-      document.getElementById("lock-submit").textContent = create ? "Criar e entrar" : "Entrar";
+      document.getElementById("lock-title").textContent = "Desbloquear";
+      document.getElementById("lock-desc").textContent =
+        "Digite a senha numérica para abrir o orçamento.";
+      document.getElementById("lock-submit").textContent = "Entrar";
       showLockError("");
       document.body.classList.add("locked");
       document.getElementById("view-lock").classList.remove("hidden");
-      setTimeout(() => {
-        const el = document.getElementById(create ? "lock-pass-new" : "lock-pass");
-        if (el) el.focus();
-      }, 50);
+      const el = document.getElementById("lock-pass");
+      if (el) {
+        el.value = "";
+        setTimeout(() => el.focus(), 50);
+      }
     }
 
     async function persistEncrypted() {
@@ -1239,6 +1245,7 @@
       localStorage.setItem(DATA_KEY, JSON.stringify(payload));
       localStorage.removeItem(LEGACY_STORAGE_KEY);
       localStorage.removeItem(LEGACY_STORAGE_KEY + "_seed_version");
+      localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem("orcamento_mensal");
       localStorage.removeItem("orcamento_mensal_version");
     }
@@ -1246,7 +1253,11 @@
     async function loadDraftFromStorage() {
       const enc = localStorage.getItem(DATA_KEY);
       if (enc && cryptoKey) {
-        appData = await decryptJson(JSON.parse(enc), cryptoKey);
+        try {
+          appData = await decryptJson(JSON.parse(enc), cryptoKey);
+        } catch {
+          appData = {};
+        }
       } else {
         const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
         if (legacy) {
@@ -1264,55 +1275,39 @@
       updateSaveStatus();
     }
 
-    async function unlockWithPassword(password) {
-      const meta = getAuthMeta();
-      if (!meta) throw new Error("Senha ainda não criada");
-      const salt = b64ToBuf(meta.salt);
-      const key = await deriveKey(password, salt);
-      await decryptJson(meta.verifier, key);
-      cryptoKey = key;
+    async function unlockWithPin(pin) {
+      if (!/^\d+$/.test(pin)) throw new Error("PIN inválido");
+      const salt = b64ToBuf(APP_GATE.salt);
+      const hash = await pinHashB64(pin, salt);
+      if (!timingSafeEqualB64(hash, APP_GATE.hash)) throw new Error("Senha incorreta");
+      cryptoKey = await deriveKey(pin, salt);
       sessionStorage.setItem(SESSION_FLAG, "1");
       await loadDraftFromStorage();
-    }
-
-    async function createPassword(password) {
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      const key = await deriveKey(password, salt);
-      const verifier = await encryptJson({ ok: true }, key);
-      setAuthMeta({ salt: bufToB64(salt), verifier });
-      cryptoKey = key;
-      sessionStorage.setItem(SESSION_FLAG, "1");
-      await loadDraftFromStorage();
-      await persistEncrypted();
     }
 
     async function submitLock() {
       showLockError("");
+      const btn = document.getElementById("lock-submit");
+      btn.disabled = true;
       try {
-        if (!hasPassword()) {
-          const a = document.getElementById("lock-pass-new").value;
-          const b = document.getElementById("lock-pass-confirm").value;
-          if (a.length < 4) {
-            showLockError("Use pelo menos 4 caracteres.");
-            return;
-          }
-          if (a !== b) {
-            showLockError("As senhas não coincidem.");
-            return;
-          }
-          await createPassword(a);
-        } else {
-          const pass = document.getElementById("lock-pass").value;
-          if (!pass) {
-            showLockError("Digite a senha.");
-            return;
-          }
-          await unlockWithPassword(pass);
+        const pass = (document.getElementById("lock-pass").value || "").trim();
+        if (!pass) {
+          showLockError("Digite a senha.");
+          return;
         }
+        if (!/^\d+$/.test(pass)) {
+          showLockError("A senha deve ter só números.");
+          return;
+        }
+        await unlockWithPin(pass);
         enterApp();
       } catch (err) {
         showLockError("Senha incorreta.");
         cryptoKey = null;
+        document.getElementById("lock-pass").value = "";
+        document.getElementById("lock-pass").focus();
+      } finally {
+        btn.disabled = false;
       }
     }
 
@@ -1331,26 +1326,18 @@
       appData = {};
       sessionStorage.removeItem(SESSION_FLAG);
       hasUnsavedChanges = false;
-      document.getElementById("lock-pass").value = "";
-      document.getElementById("lock-pass-new").value = "";
-      document.getElementById("lock-pass-confirm").value = "";
       renderLockScreen();
     }
 
     async function bootstrapAuth() {
-      if (sessionStorage.getItem(SESSION_FLAG) === "1" && hasPassword()) {
-        renderLockScreen();
-        showLockError("Sessão expirada. Digite a senha novamente.");
-        sessionStorage.removeItem(SESSION_FLAG);
-      }
+      sessionStorage.removeItem(SESSION_FLAG);
       renderLockScreen();
-
-      ["lock-pass", "lock-pass-new", "lock-pass-confirm"].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener("keydown", e => {
-          if (e.key === "Enter") submitLock();
-        });
+      const el = document.getElementById("lock-pass");
+      el.addEventListener("input", () => {
+        el.value = el.value.replace(/\D/g, "");
+      });
+      el.addEventListener("keydown", e => {
+        if (e.key === "Enter") submitLock();
       });
     }
 
