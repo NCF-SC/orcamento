@@ -1,0 +1,2153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1419">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.json">
+  <title>Orçamento Diário</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --border: #2d3a4f;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #eab308;
+      --c-receita: #5b9bd5;
+      --c-despesa: #ed7d31;
+      --c-ativo: #70ad47;
+      --c-divida: #e15759;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 1rem 1rem 5.5rem;
+    }
+
+    .container {
+      max-width: 1150px;
+      margin: 0 auto;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 50;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      padding: 0.65rem 0.85rem calc(0.65rem + env(safe-area-inset-bottom));
+      background: rgba(15, 20, 25, 0.96);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+    }
+
+    .bottom-nav button {
+      width: 100%;
+      padding: 0.85rem 0.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .bottom-nav button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .daily-hero {
+      background: linear-gradient(160deg, #1e3a5f 0%, #1a2332 55%, #15202b 100%);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 1.4rem 1.2rem 1.2rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .daily-hero .eyebrow {
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.5rem;
+    }
+
+    .daily-hero .big {
+      font-size: clamp(2rem, 8vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 0.35rem;
+    }
+
+    .daily-hero .big.ok { color: var(--green); }
+    .daily-hero .big.warn { color: var(--yellow); }
+    .daily-hero .big.bad { color: var(--red); }
+
+    .daily-hero .sub {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .daily-form {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.6rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .daily-form .row {
+      display: grid;
+      grid-template-columns: 1fr 120px;
+      gap: 0.5rem;
+    }
+
+    .daily-form input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 0.7rem 0.75rem;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+
+    .daily-form input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .daily-form button {
+      width: 100%;
+      padding: 0.85rem;
+      font-size: 1rem;
+    }
+
+    .daily-list {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .daily-list h3 {
+      padding: 0.85rem 1rem;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .daily-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .daily-item:last-child { border-bottom: none; }
+
+    .daily-item .meta { flex: 1; min-width: 0; }
+    .daily-item .meta .desc { font-weight: 600; }
+    .daily-item .meta .when { color: var(--muted); font-size: 0.78rem; margin-top: 0.15rem; }
+    .daily-item .val { font-weight: 700; white-space: nowrap; }
+    .daily-item .del {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.2rem;
+      padding: 0.2rem 0.4rem;
+    }
+    .daily-item .del:hover { color: var(--red); }
+
+    .empty-hint {
+      padding: 1.2rem 1rem;
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    .settings-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .settings-box h3 {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.75rem;
+    }
+
+    .settings-box .field {
+      display: grid;
+      gap: 0.35rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .settings-box label {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .settings-box input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 0.65rem 0.75rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+
+    .settings-hint {
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 0.85rem 0.85rem 5.5rem; }
+      header h1 { font-size: 1.25rem; }
+      .nav-mes { margin-left: 0; width: 100%; }
+      .nav-mes button { flex: 1; }
+      .sections { grid-template-columns: 1fr; }
+    }
+
+    header {
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.1rem 1.25rem;
+    }
+
+    .card label {
+      display: block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 0.45rem;
+    }
+
+    .card .value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .card .value.positive { color: var(--green); }
+    .card .value.negative { color: var(--red); }
+
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      padding: 0.7rem 1rem;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    th:first-child, td:first-child { text-align: left; }
+
+    th {
+      background: var(--surface2);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    tbody tr { cursor: pointer; transition: background 0.12s; }
+    tbody tr:hover { background: var(--surface2); }
+
+    tr:last-child td { border-bottom: none; }
+
+    tr.total-row td {
+      background: var(--surface2);
+      font-weight: 700;
+      cursor: default;
+    }
+
+    .mes-nome { font-weight: 600; }
+
+    .mes-hint {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 400;
+      margin-left: 0.5rem;
+    }
+
+    .pct {
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      display: inline-block;
+      min-width: 58px;
+      text-align: center;
+    }
+
+    .pct.ok { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+    .pct.bad { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .pct.na { color: var(--muted); }
+
+    .actions {
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.55rem 1.1rem;
+      font-size: 0.88rem;
+      cursor: pointer;
+      font-weight: 500;
+      font-family: inherit;
+    }
+
+    button:hover { background: var(--accent-hover); }
+
+    button.secondary {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    button.secondary:hover { background: var(--border); }
+
+    button.save {
+      background: var(--green);
+    }
+
+    button.save:hover {
+      background: #16a34a;
+    }
+
+    .save-status {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .save-status.dirty {
+      color: var(--yellow);
+      font-weight: 600;
+    }
+
+    .year-select {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .year-select label { color: var(--muted); font-size: 0.9rem; }
+
+    .year-select select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    footer {
+      margin-top: 2rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    /* ---------- Detalhe do mês ---------- */
+
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .detail-header h2 { font-size: 1.4rem; }
+
+    .nav-mes {
+      display: flex;
+      gap: 0.4rem;
+      margin-left: auto;
+    }
+
+    .nav-mes button { padding: 0.45rem 0.85rem; }
+
+    .sections {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      align-self: start;
+    }
+
+    .section-header {
+      padding: 0.75rem 1rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff;
+    }
+
+    .section-header .sec-total { font-size: 0.95rem; white-space: nowrap; }
+
+    .section.receitas .section-header { background: var(--c-receita); }
+    .section.despesas .section-header { background: var(--c-despesa); }
+    .section.ativos   .section-header { background: var(--c-ativo); }
+    .section.passivos .section-header { background: var(--c-divida); }
+
+    .items { padding: 0.5rem 0.75rem 0.75rem; }
+
+    .item-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.5rem;
+    }
+
+    .item-row input[type="text"].desc {
+      flex: 1;
+      min-width: 0;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.45rem 0.6rem;
+      font-size: 0.88rem;
+      font-family: inherit;
+    }
+
+    .item-row input.money-input {
+      width: 130px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.45rem 0.6rem;
+      font-size: 0.88rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-family: inherit;
+    }
+
+    .item-row input:focus { outline: none; border-color: var(--accent); }
+
+    .item-row .del {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      line-height: 1;
+      border-radius: 4px;
+    }
+
+    .item-row .del:hover { color: var(--red); background: rgba(239,68,68,0.12); }
+
+    .add-item {
+      margin-top: 0.65rem;
+      width: 100%;
+      background: transparent;
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      padding: 0.45rem;
+      font-size: 0.85rem;
+    }
+
+    .add-item:hover { background: var(--surface2); color: var(--text); }
+
+    .detail-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0 0.5rem;
+    }
+
+    .hidden { display: none !important; }
+
+    .modal-overlay.hidden { display: none !important; }
+
+    .fill-toolbar {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin: 0.75rem 0 1.25rem;
+      padding: 0.85rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .fill-toolbar span {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-right: 0.25rem;
+    }
+
+    .section-actions {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+    }
+
+    .section-actions button {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.72rem;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+
+    .section-actions button:hover {
+      background: rgba(255,255,255,0.25);
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      z-index: 100;
+    }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      width: min(720px, 100%);
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .modal-header h3 { font-size: 1.1rem; }
+
+    .modal-body {
+      padding: 1rem 1.25rem;
+      overflow-y: auto;
+    }
+
+    .modal-options {
+      display: flex;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-options label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.88rem;
+      cursor: pointer;
+    }
+
+    .copy-block {
+      margin-bottom: 1rem;
+    }
+
+    .copy-block-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .copy-block-title button {
+      padding: 0.2rem 0.5rem;
+      font-size: 0.75rem;
+    }
+
+    .copy-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.35rem 0;
+      font-size: 0.88rem;
+    }
+
+    .copy-item input { accent-color: var(--accent); }
+
+    .copy-item .copy-val {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .modal-footer {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 0.6rem;
+      justify-content: flex-end;
+    }
+
+    .lock-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+      background: radial-gradient(circle at top, #1e3a5f 0%, var(--bg) 55%);
+    }
+
+    .lock-card {
+      width: min(420px, 100%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem 1.25rem;
+    }
+
+    .lock-card h1 {
+      font-size: 1.35rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .lock-card p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.1rem;
+      line-height: 1.45;
+    }
+
+    .lock-card label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .lock-card input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 0.75rem 0.85rem;
+      font-size: 1rem;
+      margin-bottom: 0.85rem;
+      font-family: inherit;
+    }
+
+    .lock-card input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .lock-card .lock-actions {
+      display: grid;
+      gap: 0.55rem;
+      margin-top: 0.4rem;
+    }
+
+    .lock-card .lock-actions button {
+      width: 100%;
+      padding: 0.85rem;
+    }
+
+    .lock-error {
+      color: var(--red);
+      font-size: 0.85rem;
+      min-height: 1.2em;
+      margin-bottom: 0.5rem;
+    }
+
+    body.locked {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    body.locked .app-shell,
+    body.locked .bottom-nav {
+      display: none !important;
+    }
+  </style>
+</head>
+<body class="locked">
+  <div id="view-lock" class="lock-screen">
+    <div class="lock-card">
+      <h1 id="lock-title">Orçamento</h1>
+      <p id="lock-desc">Protegido por senha. Seus dados ficam criptografados neste aparelho.</p>
+      <div id="lock-create" class="hidden">
+        <label for="lock-pass-new">Criar senha</label>
+        <input type="password" id="lock-pass-new" autocomplete="new-password">
+        <label for="lock-pass-confirm">Confirmar senha</label>
+        <input type="password" id="lock-pass-confirm" autocomplete="new-password">
+      </div>
+      <div id="lock-login" class="hidden">
+        <label for="lock-pass">Senha</label>
+        <input type="password" id="lock-pass" autocomplete="current-password">
+      </div>
+      <div class="lock-error" id="lock-error"></div>
+      <div class="lock-actions">
+        <button class="save" id="lock-submit" onclick="submitLock()">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container app-shell">
+
+    <!-- ============ TELA DIÁRIA (celular) ============ -->
+    <div id="view-daily">
+      <header>
+        <div>
+          <h1>Hoje</h1>
+          <p id="daily-date-label">Quanto ainda posso gastar</p>
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+          <button class="save" onclick="saveChanges()">Salvar</button>
+          <button class="secondary" onclick="lockApp()">Sair</button>
+        </div>
+      </header>
+
+      <div class="daily-hero" id="daily-hero"></div>
+      <div class="cards" id="daily-cards"></div>
+
+      <div class="daily-form">
+        <div class="row">
+          <input type="text" id="daily-desc" placeholder="O que gastou?" autocomplete="off">
+          <input type="text" id="daily-valor" class="money-input" inputmode="numeric" placeholder="R$ 0,00">
+        </div>
+        <button onclick="addDailyExpense()">+ Lançar gasto do dia</button>
+      </div>
+
+      <div class="daily-list">
+        <h3>Gastos de hoje</h3>
+        <div id="daily-today-list"></div>
+      </div>
+
+      <div class="daily-list">
+        <h3>Histórico do mês</h3>
+        <div id="daily-history-list"></div>
+      </div>
+
+      <div class="settings-box">
+        <h3>Orçamento livre do mês</h3>
+        <div class="field">
+          <label for="livre-override">Saldo livre para gastar (opcional)</label>
+          <input type="text" id="livre-override" class="money-input" inputmode="numeric" placeholder="Automático = Receita − Fixos">
+        </div>
+        <div class="field">
+          <label for="livre-fim">Até quando (fim do período)</label>
+          <input type="date" id="livre-fim">
+        </div>
+        <p class="settings-hint" id="livre-hint">
+          Se deixar em branco, o saldo livre é Receita − custos fixos da planilha.
+          O valor diário recalcula sozinho: quanto menos gastar, mais sobra para os próximos dias.
+        </p>
+        <div class="actions" style="margin-top:0.75rem">
+          <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
+          <button class="secondary" onclick="showDetail(getDailyContext().year, getDailyContext().mes)">Abrir planilha do mês</button>
+        </div>
+      </div>
+
+      <div class="save-status" id="save-status-daily">Tudo salvo</div>
+    </div>
+
+    <!-- ============ PAINEL PRINCIPAL ============ -->
+    <div id="view-dashboard" class="hidden">
+      <header>
+        <div>
+          <h1>Planilha Mensal</h1>
+          <p>Receitas, custos fixos, ativos e dívidas — os gastos do dia entram aqui automaticamente</p>
+        </div>
+        <div class="year-select">
+          <label for="year">Ano:</label>
+          <select id="year"></select>
+        </div>
+      </header>
+
+      <div class="cards" id="summary-cards"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Mês</th>
+              <th>Receita</th>
+              <th>Despesa</th>
+              <th>% Gasto</th>
+              <th>Ativos</th>
+              <th>Passivos</th>
+              <th>Div Br/ Patrim</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+          <tfoot>
+            <tr class="total-row" id="total-row"></tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="actions">
+        <button class="save" onclick="saveChanges()">Salvar alterações</button>
+        <button class="secondary" onclick="discardChanges()">Descartar alterações</button>
+        <button onclick="exportData()">Exportar JSON</button>
+        <button class="secondary" onclick="importData()">Importar JSON</button>
+        <button class="secondary" onclick="clearYear()">Limpar ano</button>
+        <span class="save-status" id="save-status-dashboard">Tudo salvo</span>
+      </div>
+
+      <footer>Os dados só são gravados quando você clicar em Salvar alterações</footer>
+    </div>
+
+    <!-- ============ DETALHE DO MÊS ============ -->
+    <div id="view-detail" class="hidden">
+      <div class="detail-header">
+        <button class="secondary" onclick="showDashboard()">&larr; Planilha</button>
+        <h2 id="detail-title"></h2>
+        <div class="nav-mes">
+          <button class="save" onclick="saveChanges()">Salvar alterações</button>
+          <button class="secondary" onclick="discardChanges()">Descartar</button>
+          <button class="secondary" onclick="navMonth(-1)">&larr; Mês anterior</button>
+          <button class="secondary" onclick="navMonth(1)">Próximo mês &rarr;</button>
+        </div>
+      </div>
+      <div class="save-status" id="save-status-detail">Tudo salvo</div>
+
+      <div class="fill-toolbar">
+        <span>Agilizar:</span>
+        <button class="secondary" onclick="openCopyModal()">Copiar do mês anterior...</button>
+        <button class="secondary" onclick="prefillTemplate()">Pré-preencher modelo padrão</button>
+      </div>
+
+      <div class="sections">
+        <div class="section receitas">
+          <div class="section-header">
+            <span>RECEITAS</span>
+            <div class="section-actions">
+              <button onclick="copyCategoryFromPrev('receitas')" title="Copiar itens do mês anterior">↗ mês ant.</button>
+              <span class="sec-total" id="total-receitas"></span>
+            </div>
+          </div>
+          <div class="items" id="items-receitas"></div>
+        </div>
+
+        <div class="section despesas">
+          <div class="section-header">
+            <span>DESPESAS FIXAS</span>
+            <div class="section-actions">
+              <button onclick="copyCategoryFromPrev('despesas')" title="Copiar itens do mês anterior">↗ mês ant.</button>
+              <span class="sec-total" id="total-despesas"></span>
+            </div>
+          </div>
+          <div class="items" id="items-despesas"></div>
+        </div>
+
+        <div class="section ativos">
+          <div class="section-header">
+            <span>ATIVOS TOTAIS</span>
+            <div class="section-actions">
+              <button onclick="copyCategoryFromPrev('ativos')" title="Copiar itens do mês anterior">↗ mês ant.</button>
+              <span class="sec-total" id="total-ativos"></span>
+            </div>
+          </div>
+          <div class="items" id="items-ativos"></div>
+        </div>
+
+        <div class="section passivos">
+          <div class="section-header">
+            <span>DÍVIDAS TOTAIS</span>
+            <div class="section-actions">
+              <button onclick="copyCategoryFromPrev('passivos')" title="Copiar itens do mês anterior">↗ mês ant.</button>
+              <span class="sec-total" id="total-passivos"></span>
+            </div>
+          </div>
+          <div class="items" id="items-passivos"></div>
+        </div>
+      </div>
+
+      <div class="detail-cards" id="detail-cards"></div>
+
+      <div class="daily-list" style="margin-top:1rem">
+        <h3>Gastos diários deste mês (vêm da tela Hoje)</h3>
+        <div id="detail-daily-list"></div>
+      </div>
+    </div>
+
+    <div id="copy-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeCopyModal()">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="copy-modal-title">Copiar do mês anterior</h3>
+          <button class="secondary" onclick="closeCopyModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;">
+            Os itens importados trazem descrição e valores do mês anterior.
+          </p>
+          <div id="copy-modal-content"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary" onclick="closeCopyModal()">Cancelar</button>
+          <button class="save" onclick="applyCopyModal()">Importar selecionados</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <button id="nav-daily" class="active" onclick="showDaily()">Hoje</button>
+    <button id="nav-month" onclick="showDashboard()">Planilha</button>
+  </nav>
+
+  <script>
+    const MESES = [
+      "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+      "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+    ];
+
+    const MESES_LONGO = [
+      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ];
+
+    const CATEGORIAS = ["receitas", "despesas", "ativos", "passivos"];
+
+    const CATEGORIA_LABELS = {
+      receitas: "Receitas",
+      despesas: "Despesas",
+      ativos: "Ativos",
+      passivos: "Dívidas"
+    };
+
+    const MODELO_PADRAO = {
+      receitas: ["SUPREMA", "CANGURU"],
+      despesas: [
+        "ALUGUEL", "Condomínio", "Internet", "Energia", "Site",
+        "Opcoes.net", "TV a cabo", "Nubank", "Adv contrato", "Cartão BTG"
+      ],
+      ativos: [
+        "Moto", "PC", "Limite disponível cartão Nubank", "Limite disponível cartão BTG",
+        "Saldo BTG", "Saldo Wise", "Saldo Inter", "Saldo Nubank",
+        "Saldo Santander", "Saldo Rico", "Saldo CM Capital"
+      ],
+      passivos: ["Cartão Nubank", "Dívida MEI", "Cartão BTG"]
+    };
+
+    const LEGACY_STORAGE_KEY = "orcamento_mensal_v2";
+    const AUTH_KEY = "orcamento_auth_v1";
+    const DATA_KEY = "orcamento_data_enc_v1";
+    const SESSION_FLAG = "orcamento_unlocked_v1";
+
+    let currentDetail = { year: null, mes: null };
+    let currentView = "daily";
+    let appData = {};
+    let hasUnsavedChanges = false;
+    let dailyValorDigits = "";
+    let cryptoKey = null;
+    let yearSelectBound = false;
+
+    /* ---------- util ---------- */
+
+    function formatMoney(value) {
+      return (value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    }
+
+    function formatPct(value) {
+      if (value === null || !isFinite(value)) return "—";
+      return Math.round(value) + "%";
+    }
+
+    function pctClassGasto(pct) {
+      if (pct === null) return "na";
+      return pct <= 100 ? "ok" : "bad";
+    }
+
+    function calcPctGasto(receita, despesas) {
+      if (!receita) return null;
+      return (despesas / receita) * 100;
+    }
+
+    function calcDivBrPatrim(ativos, passivos) {
+      if (!ativos) return null;
+      return (passivos / ativos) * 100;
+    }
+
+    function sum(items) {
+      return (items || []).reduce((s, it) => s + (it.valor || 0), 0);
+    }
+
+    function digitsToMoney(digits) {
+      if (!digits) return 0;
+      return parseInt(digits, 10) / 100;
+    }
+
+    function emptyMonth() {
+      return {
+        receitas: [],
+        despesas: [],
+        ativos: [],
+        passivos: [],
+        gastosDiarios: [],
+        orcamentoLivre: null,
+        periodoFim: null
+      };
+    }
+
+    function normalizeMonth(m) {
+      if (!m) return emptyMonth();
+      return {
+        receitas: m.receitas || [],
+        despesas: m.despesas || [],
+        ativos: m.ativos || [],
+        passivos: m.passivos || [],
+        gastosDiarios: m.gastosDiarios || [],
+        orcamentoLivre: m.orcamentoLivre ?? null,
+        periodoFim: m.periodoFim || null
+      };
+    }
+
+    function cloneData(data) {
+      return JSON.parse(JSON.stringify(data));
+    }
+
+    function monthTotals(m) {
+      const month = normalizeMonth(m);
+      return {
+        receita: sum(month.receitas),
+        despesas: sum(month.despesas) + sum(month.gastosDiarios),
+        fixos: sum(month.despesas),
+        diarios: sum(month.gastosDiarios),
+        ativos: sum(month.ativos),
+        passivos: sum(month.passivos)
+      };
+    }
+
+    function todayISO() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function daysInMonth(year, mes) {
+      return new Date(year, mes + 1, 0).getDate();
+    }
+
+    function parseISODate(iso) {
+      const [y, m, d] = iso.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+
+    function formatDateBR(iso) {
+      const d = parseISODate(iso);
+      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+    }
+
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    /* ---------- auth + storage criptografado ---------- */
+
+    function bufToB64(buf) {
+      const bytes = new Uint8Array(buf);
+      let s = "";
+      bytes.forEach(b => { s += String.fromCharCode(b); });
+      return btoa(s);
+    }
+
+    function b64ToBuf(b64) {
+      const s = atob(b64);
+      const bytes = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+      return bytes;
+    }
+
+    async function deriveKey(password, saltBytes) {
+      const enc = new TextEncoder();
+      const baseKey = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(password),
+        "PBKDF2",
+        false,
+        ["deriveKey"]
+      );
+      return crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: saltBytes, iterations: 250000, hash: "SHA-256" },
+        baseKey,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"]
+      );
+    }
+
+    async function encryptJson(obj, key) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encoded = new TextEncoder().encode(JSON.stringify(obj));
+      const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
+      return { iv: bufToB64(iv), data: bufToB64(cipher) };
+    }
+
+    async function decryptJson(payload, key) {
+      const iv = b64ToBuf(payload.iv);
+      const data = b64ToBuf(payload.data);
+      const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+      return JSON.parse(new TextDecoder().decode(plain));
+    }
+
+    function getAuthMeta() {
+      try {
+        return JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    function setAuthMeta(meta) {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(meta));
+    }
+
+    function hasPassword() {
+      return !!getAuthMeta();
+    }
+
+    function showLockError(msg) {
+      document.getElementById("lock-error").textContent = msg || "";
+    }
+
+    function renderLockScreen() {
+      const create = !hasPassword();
+      document.getElementById("lock-create").classList.toggle("hidden", !create);
+      document.getElementById("lock-login").classList.toggle("hidden", create);
+      document.getElementById("lock-title").textContent = create ? "Criar senha" : "Desbloquear";
+      document.getElementById("lock-desc").textContent = create
+        ? "Escolha uma senha. Ela criptografa seus dados neste aparelho. Sem a senha, ninguém lê o que você salvar."
+        : "Digite sua senha para abrir o orçamento.";
+      document.getElementById("lock-submit").textContent = create ? "Criar e entrar" : "Entrar";
+      showLockError("");
+      document.body.classList.add("locked");
+      document.getElementById("view-lock").classList.remove("hidden");
+      setTimeout(() => {
+        const el = document.getElementById(create ? "lock-pass-new" : "lock-pass");
+        if (el) el.focus();
+      }, 50);
+    }
+
+    async function persistEncrypted() {
+      if (!cryptoKey) throw new Error("Sem chave");
+      const payload = await encryptJson(appData, cryptoKey);
+      localStorage.setItem(DATA_KEY, JSON.stringify(payload));
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_STORAGE_KEY + "_seed_version");
+      localStorage.removeItem("orcamento_mensal");
+      localStorage.removeItem("orcamento_mensal_version");
+    }
+
+    async function loadDraftFromStorage() {
+      const enc = localStorage.getItem(DATA_KEY);
+      if (enc && cryptoKey) {
+        appData = await decryptJson(JSON.parse(enc), cryptoKey);
+      } else {
+        const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (legacy) {
+          try {
+            appData = JSON.parse(legacy);
+            if (cryptoKey) await persistEncrypted();
+          } catch {
+            appData = {};
+          }
+        } else {
+          appData = {};
+        }
+      }
+      hasUnsavedChanges = false;
+      updateSaveStatus();
+    }
+
+    async function unlockWithPassword(password) {
+      const meta = getAuthMeta();
+      if (!meta) throw new Error("Senha ainda não criada");
+      const salt = b64ToBuf(meta.salt);
+      const key = await deriveKey(password, salt);
+      await decryptJson(meta.verifier, key);
+      cryptoKey = key;
+      sessionStorage.setItem(SESSION_FLAG, "1");
+      await loadDraftFromStorage();
+    }
+
+    async function createPassword(password) {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const key = await deriveKey(password, salt);
+      const verifier = await encryptJson({ ok: true }, key);
+      setAuthMeta({ salt: bufToB64(salt), verifier });
+      cryptoKey = key;
+      sessionStorage.setItem(SESSION_FLAG, "1");
+      await loadDraftFromStorage();
+      await persistEncrypted();
+    }
+
+    async function submitLock() {
+      showLockError("");
+      try {
+        if (!hasPassword()) {
+          const a = document.getElementById("lock-pass-new").value;
+          const b = document.getElementById("lock-pass-confirm").value;
+          if (a.length < 4) {
+            showLockError("Use pelo menos 4 caracteres.");
+            return;
+          }
+          if (a !== b) {
+            showLockError("As senhas não coincidem.");
+            return;
+          }
+          await createPassword(a);
+        } else {
+          const pass = document.getElementById("lock-pass").value;
+          if (!pass) {
+            showLockError("Digite a senha.");
+            return;
+          }
+          await unlockWithPassword(pass);
+        }
+        enterApp();
+      } catch (err) {
+        showLockError("Senha incorreta.");
+        cryptoKey = null;
+      }
+    }
+
+    function enterApp() {
+      document.body.classList.remove("locked");
+      document.getElementById("view-lock").classList.add("hidden");
+      closeCopyModal();
+      initYearSelect();
+      bindDailyInputs();
+      showDaily();
+    }
+
+    function lockApp() {
+      if (hasUnsavedChanges && !confirm("Há alterações não salvas. Sair mesmo assim?")) return;
+      cryptoKey = null;
+      appData = {};
+      sessionStorage.removeItem(SESSION_FLAG);
+      hasUnsavedChanges = false;
+      document.getElementById("lock-pass").value = "";
+      document.getElementById("lock-pass-new").value = "";
+      document.getElementById("lock-pass-confirm").value = "";
+      renderLockScreen();
+    }
+
+    async function bootstrapAuth() {
+      if (sessionStorage.getItem(SESSION_FLAG) === "1" && hasPassword()) {
+        renderLockScreen();
+        showLockError("Sessão expirada. Digite a senha novamente.");
+        sessionStorage.removeItem(SESSION_FLAG);
+      }
+      renderLockScreen();
+
+      ["lock-pass", "lock-pass-new", "lock-pass-confirm"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener("keydown", e => {
+          if (e.key === "Enter") submitLock();
+        });
+      });
+    }
+
+    function getYearData(year) {
+      if (!appData[year]) {
+        appData[year] = MESES.map(() => emptyMonth());
+        markDirty();
+      }
+      appData[year] = appData[year].map(normalizeMonth);
+      return appData[year];
+    }
+
+    function setYearData(year, months) {
+      appData[year] = months;
+      markDirty();
+    }
+
+    function markDirty() {
+      hasUnsavedChanges = true;
+      updateSaveStatus();
+    }
+
+    function updateSaveStatus() {
+      const text = hasUnsavedChanges ? "Alterações não salvas" : "Tudo salvo";
+      document.querySelectorAll(".save-status").forEach(el => {
+        el.textContent = text;
+        el.classList.toggle("dirty", hasUnsavedChanges);
+      });
+    }
+
+    function setActiveNav(view) {
+      currentView = view;
+      document.getElementById("nav-daily").classList.toggle("active", view === "daily");
+      document.getElementById("nav-month").classList.toggle("active", view === "month" || view === "detail");
+    }
+
+    function hideAllViews() {
+      document.getElementById("view-daily").classList.add("hidden");
+      document.getElementById("view-dashboard").classList.add("hidden");
+      document.getElementById("view-detail").classList.add("hidden");
+    }
+
+    /* ---------- tela diária ---------- */
+
+    function getDailyContext() {
+      const now = new Date();
+      return { year: now.getFullYear(), mes: now.getMonth(), hoje: todayISO() };
+    }
+
+    function getCurrentMonth() {
+      const { year, mes } = getDailyContext();
+      return { year, mes, month: getYearData(year)[mes] };
+    }
+
+    function calcDailyBudget(year, mes, asOfISO) {
+      const month = normalizeMonth(getYearData(year)[mes]);
+      const t = monthTotals(month);
+      const livreBase = month.orcamentoLivre != null
+        ? Number(month.orcamentoLivre)
+        : Math.max(0, t.receita - t.fixos);
+
+      const gastos = month.gastosDiarios || [];
+      const gastoAntes = gastos
+        .filter(g => g.data < asOfISO)
+        .reduce((s, g) => s + (g.valor || 0), 0);
+      const gastoHoje = gastos
+        .filter(g => g.data === asOfISO)
+        .reduce((s, g) => s + (g.valor || 0), 0);
+      const gastoAteAgora = gastoAntes + gastoHoje;
+
+      const restanteAntes = livreBase - gastoAntes;
+      const restante = livreBase - gastoAteAgora;
+
+      const fimISO = month.periodoFim || `${year}-${String(mes + 1).padStart(2, "0")}-${String(daysInMonth(year, mes)).padStart(2, "0")}`;
+      const asOf = parseISODate(asOfISO);
+      const fim = parseISODate(fimISO);
+      const msDay = 24 * 60 * 60 * 1000;
+      let diasRestantes = Math.floor((fim - asOf) / msDay) + 1;
+      if (diasRestantes < 1) diasRestantes = 1;
+
+      const porDia = restanteAntes / diasRestantes;
+      const aindaHoje = porDia - gastoHoje;
+
+      return {
+        livreBase,
+        gastoAteAgora,
+        gastoHoje,
+        restante,
+        restanteAntes,
+        diasRestantes,
+        porDia,
+        aindaHoje,
+        fimISO,
+        receita: t.receita,
+        fixos: t.fixos
+      };
+    }
+
+    function showDaily() {
+      hideAllViews();
+      document.getElementById("view-daily").classList.remove("hidden");
+      setActiveNav("daily");
+      renderDaily();
+    }
+
+    function renderDaily() {
+      const { year, mes, hoje } = getDailyContext();
+      const month = getYearData(year)[mes];
+      const budget = calcDailyBudget(year, mes, hoje);
+
+      document.getElementById("daily-date-label").textContent =
+        `${MESES_LONGO[mes]} de ${year} · ${formatDateBR(hoje)}`;
+
+      let tone = "ok";
+      if (budget.aindaHoje < 0) tone = "bad";
+      else if (budget.gastoHoje > budget.porDia) tone = "warn";
+
+      document.getElementById("daily-hero").innerHTML = `
+        <div class="eyebrow">Ainda pode gastar hoje</div>
+        <div class="big ${tone}">${formatMoney(budget.aindaHoje)}</div>
+        <div class="sub">Meta do dia ${formatMoney(budget.porDia)} · ${budget.diasRestantes} dia(s) · sobra ${formatMoney(budget.restante)}</div>
+      `;
+
+      document.getElementById("daily-cards").innerHTML = `
+        <div class="card">
+          <label>Saldo livre do mês</label>
+          <div class="value positive">${formatMoney(budget.livreBase)}</div>
+        </div>
+        <div class="card">
+          <label>Já gasto (variável)</label>
+          <div class="value negative">${formatMoney(budget.gastoAteAgora)}</div>
+        </div>
+        <div class="card">
+          <label>Gasto hoje</label>
+          <div class="value ${budget.gastoHoje > 0 ? "negative" : ""}">${formatMoney(budget.gastoHoje)}</div>
+        </div>
+        <div class="card">
+          <label>Meta / dia agora</label>
+          <div class="value">${formatMoney(budget.porDia)}</div>
+        </div>
+        <div class="card">
+          <label>Receita − Fixos</label>
+          <div class="value">${formatMoney(budget.receita)} − ${formatMoney(budget.fixos)}</div>
+        </div>
+        <div class="card">
+          <label>Período até</label>
+          <div class="value">${formatDateBR(budget.fimISO)}</div>
+        </div>
+      `;
+
+      const livreInput = document.getElementById("livre-override");
+      const fimInput = document.getElementById("livre-fim");
+      if (document.activeElement !== livreInput) {
+        livreInput.value = month.orcamentoLivre != null ? formatMoney(month.orcamentoLivre) : "";
+      }
+      if (document.activeElement !== fimInput) {
+        fimInput.value = budget.fimISO;
+      }
+
+      document.getElementById("livre-hint").textContent =
+        month.orcamentoLivre != null
+          ? `Usando saldo livre manual. Se zerar o campo, volta para Receita − Fixos (${formatMoney(Math.max(0, budget.receita - budget.fixos))}).`
+          : `Automático: Receita ${formatMoney(budget.receita)} − Fixos ${formatMoney(budget.fixos)} = ${formatMoney(Math.max(0, budget.receita - budget.fixos))}. O não gasto de hoje dilui nos próximos dias.`;
+
+      const todayItems = (month.gastosDiarios || []).filter(g => g.data === hoje).slice().reverse();
+      const todayList = document.getElementById("daily-today-list");
+      if (!todayItems.length) {
+        todayList.innerHTML = `<div class="empty-hint">Nenhum gasto lançado hoje</div>`;
+      } else {
+        todayList.innerHTML = todayItems.map(g => `
+          <div class="daily-item">
+            <div class="meta">
+              <div class="desc">${escapeHtml(g.desc || "Gasto")}</div>
+              <div class="when">${formatDateBR(g.data)}</div>
+            </div>
+            <div class="val">${formatMoney(g.valor)}</div>
+            <button class="del" onclick="removeDailyExpense('${g.id}')">&times;</button>
+          </div>
+        `).join("");
+      }
+
+      const byDay = {};
+      (month.gastosDiarios || []).forEach(g => {
+        byDay[g.data] = (byDay[g.data] || 0) + (g.valor || 0);
+      });
+      const days = Object.keys(byDay).sort().reverse();
+      const hist = document.getElementById("daily-history-list");
+      if (!days.length) {
+        hist.innerHTML = `<div class="empty-hint">Ainda sem histórico neste mês</div>`;
+      } else {
+        hist.innerHTML = days.map(d => `
+          <div class="daily-item">
+            <div class="meta">
+              <div class="desc">${formatDateBR(d)}${d === hoje ? " · hoje" : ""}</div>
+              <div class="when">${(month.gastosDiarios || []).filter(g => g.data === d).length} lançamento(s)</div>
+            </div>
+            <div class="val">${formatMoney(byDay[d])}</div>
+          </div>
+        `).join("");
+      }
+
+      updateSaveStatus();
+    }
+
+    function addDailyExpense() {
+      const desc = document.getElementById("daily-desc").value.trim() || "Gasto do dia";
+      const valor = digitsToMoney(dailyValorDigits);
+      if (!valor) {
+        alert("Informe um valor.");
+        return;
+      }
+
+      const { year, mes, hoje } = getDailyContext();
+      const months = getYearData(year);
+      months[mes].gastosDiarios = months[mes].gastosDiarios || [];
+      months[mes].gastosDiarios.push({ id: uid(), data: hoje, desc, valor });
+      setYearData(year, months);
+
+      document.getElementById("daily-desc").value = "";
+      document.getElementById("daily-valor").value = "";
+      dailyValorDigits = "";
+      renderDaily();
+    }
+
+    function removeDailyExpense(id) {
+      const { year, mes } = getDailyContext();
+      const months = getYearData(year);
+      months[mes].gastosDiarios = (months[mes].gastosDiarios || []).filter(g => g.id !== id);
+      setYearData(year, months);
+      renderDaily();
+    }
+
+    function applyDailySettings() {
+      const { year, mes } = getDailyContext();
+      const months = getYearData(year);
+      const raw = document.getElementById("livre-override").value.trim();
+      const fim = document.getElementById("livre-fim").value;
+
+      if (!raw) {
+        months[mes].orcamentoLivre = null;
+      } else {
+        const digits = raw.replace(/\D/g, "");
+        months[mes].orcamentoLivre = digitsToMoney(digits);
+      }
+      months[mes].periodoFim = fim || null;
+      setYearData(year, months);
+      renderDaily();
+    }
+
+    function bindDailyInputs() {
+      if (bindDailyInputs.done) return;
+      bindDailyInputs.done = true;
+      const valorInput = document.getElementById("daily-valor");
+      valorInput.addEventListener("focus", () => valorInput.select());
+      valorInput.addEventListener("input", () => {
+        dailyValorDigits = valorInput.value.replace(/\D/g, "");
+        const val = digitsToMoney(dailyValorDigits);
+        valorInput.value = val ? formatMoney(val) : "";
+      });
+
+      const livreInput = document.getElementById("livre-override");
+      livreInput.addEventListener("focus", () => livreInput.select());
+      livreInput.addEventListener("input", () => {
+        const digits = livreInput.value.replace(/\D/g, "");
+        const val = digitsToMoney(digits);
+        livreInput.value = val ? formatMoney(val) : "";
+      });
+
+      document.getElementById("daily-desc").addEventListener("keydown", e => {
+        if (e.key === "Enter") addDailyExpense();
+      });
+      valorInput.addEventListener("keydown", e => {
+        if (e.key === "Enter") addDailyExpense();
+      });
+    }
+
+    async function saveChanges() {
+      if (!cryptoKey) {
+        alert("Desbloqueie o app com a senha antes de salvar.");
+        return;
+      }
+      try {
+        await persistEncrypted();
+        hasUnsavedChanges = false;
+        updateSaveStatus();
+        alert("Alterações salvas e criptografadas neste aparelho.");
+      } catch (err) {
+        alert("Não foi possível salvar. Tente novamente.");
+      }
+    }
+
+    async function discardChanges() {
+      if (hasUnsavedChanges && !confirm("Descartar alterações não salvas?")) return;
+      await loadDraftFromStorage();
+      initYearSelect();
+      if (currentView === "daily") renderDaily();
+      else if (currentView === "detail") renderDetail();
+      else renderDashboard();
+    }
+
+    /* ---------- painel principal ---------- */
+
+    function initYearSelect() {
+      const select = document.getElementById("year");
+      select.innerHTML = "";
+      const currentYear = new Date().getFullYear();
+      const years = new Set([currentYear, currentYear - 1, currentYear + 1]);
+      Object.keys(appData).forEach(y => years.add(Number(y)));
+
+      [...years].sort((a, b) => b - a).forEach(y => {
+        const opt = document.createElement("option");
+        opt.value = y;
+        opt.textContent = y;
+        if (y === currentYear) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      if (!yearSelectBound) {
+        select.addEventListener("change", renderDashboard);
+        yearSelectBound = true;
+      }
+    }
+
+    function renderSummary(months) {
+      const totals = months.map(monthTotals);
+      const receita = totals.reduce((s, t) => s + t.receita, 0);
+      const despesas = totals.reduce((s, t) => s + t.despesas, 0);
+      const saldo = receita - despesas;
+      const last = [...totals].reverse().find(t => t.ativos > 0 || t.passivos > 0) || totals[totals.length - 1];
+      const patrimonio = last.ativos - last.passivos;
+      const gastoPct = calcPctGasto(receita, despesas);
+      const divPct = calcDivBrPatrim(last.ativos, last.passivos);
+
+      document.getElementById("summary-cards").innerHTML = `
+        <div class="card">
+          <label>Receita total</label>
+          <div class="value positive">${formatMoney(receita)}</div>
+        </div>
+        <div class="card">
+          <label>Despesa total</label>
+          <div class="value negative">${formatMoney(despesas)}</div>
+        </div>
+        <div class="card">
+          <label>Saldo (Receita − Despesa)</label>
+          <div class="value ${saldo >= 0 ? "positive" : "negative"}">${formatMoney(saldo)}</div>
+        </div>
+        <div class="card">
+          <label>% Gasto</label>
+          <div class="value ${gastoPct !== null && gastoPct > 100 ? "negative" : ""}">${formatPct(gastoPct)}</div>
+        </div>
+        <div class="card">
+          <label>Patrimônio (Ativos − Passivos)</label>
+          <div class="value ${patrimonio >= 0 ? "positive" : "negative"}">${formatMoney(patrimonio)}</div>
+        </div>
+        <div class="card">
+          <label>Div Br/ Patrim (último mês)</label>
+          <div class="value">${formatPct(divPct)}</div>
+        </div>
+      `;
+    }
+
+    function renderDashboard() {
+      const year = Number(document.getElementById("year").value);
+      const months = getYearData(year);
+      renderSummary(months);
+
+      const tbody = document.getElementById("table-body");
+      tbody.innerHTML = "";
+
+      months.forEach((m, i) => {
+        const t = monthTotals(m);
+        const gastoPct = calcPctGasto(t.receita, t.despesas);
+        const divPct = calcDivBrPatrim(t.ativos, t.passivos);
+        const vazio = !t.receita && !t.despesas && !t.ativos && !t.passivos;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><span class="mes-nome">${MESES[i]}</span>${vazio ? '<span class="mes-hint">clique para preencher</span>' : ""}</td>
+          <td>${formatMoney(t.receita)}</td>
+          <td>${formatMoney(t.despesas)}</td>
+          <td><span class="pct ${pctClassGasto(gastoPct)}">${formatPct(gastoPct)}</span></td>
+          <td>${formatMoney(t.ativos)}</td>
+          <td>${formatMoney(t.passivos)}</td>
+          <td><span class="pct ${divPct === null ? "na" : "ok"}">${formatPct(divPct)}</span></td>
+        `;
+        tr.addEventListener("click", () => showDetail(year, i));
+        tbody.appendChild(tr);
+      });
+
+      const totalReceita = months.reduce((s, m) => s + sum(m.receitas), 0);
+      const totalDespesas = months.reduce((s, m) => s + sum(m.despesas), 0);
+      const totalGastoPct = calcPctGasto(totalReceita, totalDespesas);
+
+      document.getElementById("total-row").innerHTML = `
+        <td>Total</td>
+        <td>${formatMoney(totalReceita)}</td>
+        <td>${formatMoney(totalDespesas)}</td>
+        <td><span class="pct ${pctClassGasto(totalGastoPct)}">${formatPct(totalGastoPct)}</span></td>
+        <td></td>
+        <td></td>
+        <td></td>
+      `;
+    }
+
+    /* ---------- detalhe do mês ---------- */
+
+    function showDetail(year, mes) {
+      currentDetail = { year, mes };
+      hideAllViews();
+      document.getElementById("view-detail").classList.remove("hidden");
+      setActiveNav("detail");
+      renderDetail();
+    }
+
+    function showDashboard() {
+      hideAllViews();
+      document.getElementById("view-dashboard").classList.remove("hidden");
+      setActiveNav("month");
+      renderDashboard();
+    }
+
+    function navMonth(delta) {
+      let { year, mes } = currentDetail;
+      mes += delta;
+      if (mes < 0) { mes = 11; year -= 1; }
+      if (mes > 11) { mes = 0; year += 1; }
+      currentDetail = { year, mes };
+      renderDetail();
+    }
+
+    function renderDetail() {
+      const { year, mes } = currentDetail;
+      autoCopyFromPreviousIfEmpty(year, mes);
+      document.getElementById("detail-title").textContent = `${MESES_LONGO[mes]} de ${year}`;
+
+      CATEGORIAS.forEach(cat => renderSection(cat));
+      renderDetailCards();
+    }
+
+    function renderSection(cat) {
+      const { year, mes } = currentDetail;
+      const months = getYearData(year);
+      const items = months[mes][cat];
+      const container = document.getElementById("items-" + cat);
+      container.innerHTML = "";
+
+      items.forEach((it, idx) => {
+        const row = document.createElement("div");
+        row.className = "item-row";
+        row.innerHTML = `
+          <input type="text" class="desc" value="${escapeHtml(it.desc)}" placeholder="Descrição">
+          <input type="text" class="money-input" inputmode="numeric" value="${it.valor ? formatMoney(it.valor) : ""}" placeholder="R$ 0,00">
+          <button class="del" title="Remover">&times;</button>
+        `;
+
+        const [descInput, valInput] = row.querySelectorAll("input");
+        const delBtn = row.querySelector(".del");
+
+        descInput.addEventListener("input", () => {
+          items[idx].desc = descInput.value;
+          setYearData(year, months);
+        });
+
+        valInput.addEventListener("focus", () => valInput.select());
+        valInput.addEventListener("input", () => {
+          const digits = valInput.value.replace(/\D/g, "");
+          const val = digitsToMoney(digits);
+          items[idx].valor = val;
+          valInput.value = val ? formatMoney(val) : "";
+          setYearData(year, months);
+          updateSectionTotal(cat, items);
+          renderDetailCards();
+        });
+
+        delBtn.addEventListener("click", () => {
+          items.splice(idx, 1);
+          setYearData(year, months);
+          renderSection(cat);
+          renderDetailCards();
+        });
+
+        container.appendChild(row);
+      });
+
+      const addBtn = document.createElement("button");
+      addBtn.className = "add-item";
+      addBtn.textContent = "+ Adicionar item";
+      addBtn.addEventListener("click", () => {
+        items.push({ desc: "", valor: 0 });
+        setYearData(year, months);
+        renderSection(cat);
+        const inputs = container.querySelectorAll(".item-row .desc");
+        if (inputs.length) inputs[inputs.length - 1].focus();
+      });
+      container.appendChild(addBtn);
+
+      updateSectionTotal(cat, items);
+    }
+
+    function updateSectionTotal(cat, items) {
+      document.getElementById("total-" + cat).textContent = formatMoney(sum(items));
+    }
+
+    function renderDetailCards() {
+      const { year, mes } = currentDetail;
+      const months = getYearData(year);
+      const t = monthTotals(months[mes]);
+      const saldo = t.receita - t.despesas;
+      const gastoPct = calcPctGasto(t.receita, t.despesas);
+      const divPct = calcDivBrPatrim(t.ativos, t.passivos);
+      const patrimonio = t.ativos - t.passivos;
+
+      document.getElementById("detail-cards").innerHTML = `
+        <div class="card">
+          <label>Saldo do mês</label>
+          <div class="value ${saldo >= 0 ? "positive" : "negative"}">${formatMoney(saldo)}</div>
+        </div>
+        <div class="card">
+          <label>Fixos + Diários</label>
+          <div class="value negative">${formatMoney(t.fixos)} + ${formatMoney(t.diarios)}</div>
+        </div>
+        <div class="card">
+          <label>% Gasto</label>
+          <div class="value ${gastoPct !== null && gastoPct > 100 ? "negative" : ""}">${formatPct(gastoPct)}</div>
+        </div>
+        <div class="card">
+          <label>Patrimônio</label>
+          <div class="value ${patrimonio >= 0 ? "positive" : "negative"}">${formatMoney(patrimonio)}</div>
+        </div>
+      `;
+
+      const diarios = (months[mes].gastosDiarios || []).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.id || "").localeCompare(a.id || ""));
+      const list = document.getElementById("detail-daily-list");
+      if (!diarios.length) {
+        list.innerHTML = `<div class="empty-hint">Nenhum gasto diário neste mês</div>`;
+      } else {
+        list.innerHTML = diarios.map(g => `
+          <div class="daily-item">
+            <div class="meta">
+              <div class="desc">${escapeHtml(g.desc || "Gasto")}</div>
+              <div class="when">${formatDateBR(g.data)}</div>
+            </div>
+            <div class="val">${formatMoney(g.valor)}</div>
+          </div>
+        `).join("");
+      }
+    }
+
+    function escapeHtml(str) {
+      return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function normDesc(desc) {
+      return (desc || "").trim().toLowerCase();
+    }
+
+    function hasItemDesc(items, desc) {
+      const n = normDesc(desc);
+      return items.some(it => normDesc(it.desc) === n);
+    }
+
+    function getPrevMonthRef(year, mes) {
+      if (mes === 0) return { year: year - 1, mes: 11 };
+      return { year, mes: mes - 1 };
+    }
+
+    function getPrevMonthData(year, mes) {
+      const prev = getPrevMonthRef(year, mes);
+      const months = getYearData(prev.year);
+      return { ...prev, data: months[prev.mes] };
+    }
+
+    function cloneItems(items, keepValues) {
+      return items.map(it => ({
+        desc: it.desc,
+        valor: keepValues ? (it.valor || 0) : 0
+      }));
+    }
+
+    function mergeItems(target, incoming) {
+      let added = 0;
+      incoming.forEach(it => {
+        if (!it.desc.trim()) return;
+        if (hasItemDesc(target, it.desc)) return;
+        target.push({ desc: it.desc, valor: it.valor || 0 });
+        added++;
+      });
+      return added;
+    }
+
+    function isMonthEmpty(month) {
+      return CATEGORIAS.every(cat => !(month[cat] || []).length);
+    }
+
+    function copyAllFromPrevious(year, mes, onlyCats) {
+      const months = getYearData(year);
+      const month = months[mes];
+      const prev = getPrevMonthData(year, mes);
+      const cats = onlyCats || CATEGORIAS;
+      let added = 0;
+
+      cats.forEach(cat => {
+        added += mergeItems(month[cat], cloneItems(prev.data[cat] || [], true));
+      });
+
+      if (added) setYearData(year, months);
+      return added;
+    }
+
+    function autoCopyFromPreviousIfEmpty(year, mes) {
+      const months = getYearData(year);
+      if (!isMonthEmpty(months[mes])) return;
+      copyAllFromPrevious(year, mes);
+    }
+
+    function prefillTemplate() {
+      const { year, mes } = currentDetail;
+      const months = getYearData(year);
+      const month = months[mes];
+      let total = 0;
+
+      CATEGORIAS.forEach(cat => {
+        MODELO_PADRAO[cat].forEach(desc => {
+          if (hasItemDesc(month[cat], desc)) return;
+          month[cat].push({ desc, valor: 0 });
+          total++;
+        });
+      });
+
+      if (!total) {
+        alert("O modelo padrão já está aplicado neste mês.");
+        return;
+      }
+
+      setYearData(year, months);
+      renderDetail();
+      alert(`${total} item(ns) adicionado(s) do modelo padrão. Ajuste os valores e clique em Salvar.`);
+    }
+
+    function copyCategoryFromPrev(cat) {
+      const { year, mes } = currentDetail;
+      const prev = getPrevMonthData(year, mes);
+      const source = prev.data[cat] || [];
+
+      if (!source.length) return;
+
+      copyAllFromPrevious(year, mes, [cat]);
+      renderDetail();
+    }
+
+    function openCopyModal() {
+      const { year, mes } = currentDetail;
+      const prev = getPrevMonthData(year, mes);
+      const content = document.getElementById("copy-modal-content");
+      content.innerHTML = "";
+
+      document.getElementById("copy-modal-title").textContent =
+        `Copiar de ${MESES_LONGO[prev.mes]} de ${prev.year}`;
+
+      let hasAny = false;
+
+      CATEGORIAS.forEach(cat => {
+        const items = prev.data[cat] || [];
+        if (!items.length) return;
+        hasAny = true;
+
+        const block = document.createElement("div");
+        block.className = "copy-block";
+        block.dataset.cat = cat;
+
+        const title = document.createElement("div");
+        title.className = "copy-block-title";
+        title.innerHTML = `
+          <span>${CATEGORIA_LABELS[cat]}</span>
+          <button class="secondary" type="button" onclick="toggleCopyBlock('${cat}', true)">Marcar todos</button>
+        `;
+        block.appendChild(title);
+
+        items.forEach((it, idx) => {
+          const row = document.createElement("label");
+          row.className = "copy-item";
+          row.innerHTML = `
+            <input type="checkbox" class="copy-check" data-cat="${cat}" data-idx="${idx}" checked>
+            <span>${escapeHtml(it.desc || "(sem descrição)")}</span>
+            <span class="copy-val">${formatMoney(it.valor)}</span>
+          `;
+          block.appendChild(row);
+        });
+
+        content.appendChild(block);
+      });
+
+      if (!hasAny) {
+        alert(`Não há itens em ${MESES_LONGO[prev.mes]} de ${prev.year} para copiar.`);
+        return;
+      }
+
+      document.getElementById("copy-modal").classList.remove("hidden");
+    }
+
+    function closeCopyModal() {
+      document.getElementById("copy-modal").classList.add("hidden");
+    }
+
+    function toggleCopyBlock(cat, checked) {
+      document.querySelectorAll(`.copy-check[data-cat="${cat}"]`).forEach(cb => {
+        cb.checked = checked;
+      });
+    }
+
+    function applyCopyModal() {
+      const { year, mes } = currentDetail;
+      const prev = getPrevMonthData(year, mes);
+      const months = getYearData(year);
+      const selected = { receitas: [], despesas: [], ativos: [], passivos: [] };
+
+      document.querySelectorAll(".copy-check:checked").forEach(cb => {
+        const cat = cb.dataset.cat;
+        const idx = Number(cb.dataset.idx);
+        const item = prev.data[cat][idx];
+        if (item) selected[cat].push(cloneItems([item], true)[0]);
+      });
+
+      let total = 0;
+      CATEGORIAS.forEach(cat => {
+        total += mergeItems(months[mes][cat], selected[cat]);
+      });
+
+      if (!total) return;
+
+      setYearData(year, months);
+      closeCopyModal();
+      renderDetail();
+    }
+
+    /* ---------- exportar / importar / limpar ---------- */
+
+    function exportData() {
+      const data = appData;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "orcamento_mensal.json";
+      a.click();
+    }
+
+    function importData() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json";
+      input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          try {
+            const data = JSON.parse(ev.target.result);
+            appData = data;
+            markDirty();
+            initYearSelect();
+            if (currentView === "daily") renderDaily();
+            else if (currentView === "detail") renderDetail();
+            else renderDashboard();
+            alert("Dados importados. Clique em Salvar alterações para gravar.");
+          } catch {
+            alert("Arquivo inválido.");
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+
+    function clearYear() {
+      const year = Number(document.getElementById("year").value);
+      if (!confirm(`Limpar todos os dados de ${year}?`)) return;
+      setYearData(year, MESES.map(() => emptyMonth()));
+      renderDashboard();
+    }
+
+    /* ---------- init ---------- */
+
+    bootstrapAuth();
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeCopyModal();
+    });
+
+    window.addEventListener("beforeunload", (event) => {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+  </script>
+</body>
+</html>
