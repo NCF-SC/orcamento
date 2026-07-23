@@ -1,5 +1,4 @@
-// Preencha após criar o Realtime Database no Firebase Console.
-// Também pode colar a URL no app (tela Hoje → Nuvem).
+// Nuvem compartilhada — todos os aparelhos com a senha usam este banco.
 window.FIREBASE_CONFIG = {
-  databaseURL: ""
+  databaseURL: "https://mesal-b8323-default-rtdb.firebaseio.com"
 };

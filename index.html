@@ -976,7 +976,7 @@
           Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
           Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
         </p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 12 · Jul/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 13 · Jul/2026</p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
           <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
@@ -987,14 +987,14 @@
       <div class="settings-box" id="cloud-box">
         <h3>Nuvem (sync entre aparelhos)</h3>
         <p class="settings-hint" id="sync-hint">
-          Ao salvar, a planilha criptografada sobe automaticamente. No outro aparelho, ao desbloquear, baixa a versão mais nova.
+          Nuvem ligada. Ao salvar, todos os aparelhos com a senha recebem a planilha (criptografada).
+          Quem abrir depois baixa a versão mais nova ao desbloquear.
         </p>
-        <div class="field cloud-setup" id="cloud-setup-fields">
+        <div class="field cloud-setup" id="cloud-setup-fields" style="display:none">
           <label for="fb-url">URL do Realtime Database (Firebase)</label>
           <input type="url" id="fb-url" placeholder="https://SEU-PROJETO-default-rtdb.firebaseio.com" autocomplete="off">
         </div>
         <div class="actions" style="margin-top:0.75rem">
-          <button class="secondary" onclick="saveFirebaseConfigFromUi()">Conectar nuvem</button>
           <button class="secondary" onclick="syncNow()">Sincronizar agora</button>
         </div>
         <p class="settings-hint" id="sync-status-line" style="margin-top:0.6rem">Status: —</p>
@@ -1446,6 +1446,9 @@
     /* ---------- nuvem (Firebase Realtime Database) ---------- */
 
     function getFirebaseConfig() {
+      // Config publicada no site tem prioridade (todos os aparelhos iguais)
+      const fromFile = window.FIREBASE_CONFIG || {};
+      if (fromFile.databaseURL) return fromFile;
       try {
         const raw = localStorage.getItem(FB_CFG_KEY);
         if (raw) {
@@ -1453,8 +1456,6 @@
           if (parsed && parsed.databaseURL) return parsed;
         }
       } catch {}
-      const fromFile = window.FIREBASE_CONFIG || {};
-      if (fromFile.databaseURL) return fromFile;
       return null;
     }
 
