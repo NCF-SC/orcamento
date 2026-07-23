@@ -882,17 +882,17 @@
   <div id="view-lock" class="lock-screen">
     <div class="lock-card">
       <h1 id="lock-title">Desbloquear</h1>
-      <p id="lock-desc">Digite a senha numérica para abrir o orçamento.</p>
+      <p id="lock-desc">Digite os 6 números — entra sozinho no celular e no computador.</p>
       <div id="lock-login">
         <label for="lock-pass">Senha (só números)</label>
         <div class="pin-wrap">
           <input
-            type="text"
+            type="tel"
             id="lock-pass"
             class="masked"
             inputmode="numeric"
             pattern="[0-9]*"
-            autocomplete="one-time-code"
+            autocomplete="off"
             enterkeyhint="done"
             maxlength="6"
             placeholder="000000"
@@ -976,7 +976,7 @@
           Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
           Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
         </p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 14 · Jul/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 15 · Jul/2026</p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
           <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
@@ -1390,7 +1390,7 @@
     function renderLockScreen() {
       document.getElementById("lock-title").textContent = "Desbloquear";
       document.getElementById("lock-desc").textContent =
-        "Digite a senha numérica para abrir o orçamento.";
+        "Digite os 6 números — entra sozinho no celular e no computador.";
       document.getElementById("lock-submit").textContent = "Entrar";
       showLockError("");
       document.body.classList.add("locked");
@@ -1825,24 +1825,44 @@
 
     async function bootstrapAuth() {
       const el = document.getElementById("lock-pass");
+      let autoUnlockTimer = null;
 
-      el.setAttribute("type", "text");
+      el.setAttribute("type", "tel");
       el.setAttribute("inputmode", "numeric");
       el.setAttribute("pattern", "[0-9]*");
+      el.setAttribute("maxlength", "6");
+      el.setAttribute("autocomplete", "off");
+
+      function tryAutoUnlock() {
+        const digits = String(el.value || "").replace(/\D/g, "").slice(0, 6);
+        if (el.value !== digits) el.value = digits;
+        if (digits.length < 6) return;
+        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
+        // No celular o 6º dígito precisa “assentar” antes de validar
+        autoUnlockTimer = setTimeout(() => {
+          autoUnlockTimer = null;
+          const pass = String(el.value || "").replace(/\D/g, "").slice(0, 6);
+          if (pass.length !== 6) return;
+          try { el.blur(); } catch {}
+          submitLock();
+        }, 80);
+      }
 
       el.addEventListener("focus", () => {
         el.setAttribute("inputmode", "numeric");
         el.setAttribute("pattern", "[0-9]*");
+        el.setAttribute("type", "tel");
       });
 
-      el.addEventListener("input", () => {
-        const start = el.selectionStart;
-        el.value = String(el.value || "").replace(/\D/g, "").slice(0, 6);
-        try { el.setSelectionRange(start, start); } catch {}
-        if (el.value.length === 6) submitLock();
-      });
+      el.addEventListener("input", tryAutoUnlock);
+      el.addEventListener("keyup", tryAutoUnlock);
+      el.addEventListener("change", tryAutoUnlock);
+      el.addEventListener("paste", () => setTimeout(tryAutoUnlock, 0));
       el.addEventListener("keydown", e => {
-        if (e.key === "Enter") submitLock();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          submitLock();
+        }
       });
 
       const sessionPin = sessionStorage.getItem(SESSION_PIN);
