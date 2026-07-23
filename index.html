@@ -894,7 +894,7 @@
             pattern="[0-9]*"
             autocomplete="one-time-code"
             enterkeyhint="done"
-            maxlength="12"
+            maxlength="6"
             placeholder="000000"
             aria-label="Senha numérica"
             autocapitalize="off"
@@ -976,7 +976,7 @@
           Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
           Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
         </p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 13 · Jul/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 14 · Jul/2026</p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
           <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
@@ -1740,8 +1740,9 @@
     }
 
     async function submitLock() {
-      showLockError("");
       const btn = document.getElementById("lock-submit");
+      if (btn.disabled) return;
+      showLockError("");
       const pass = String(document.getElementById("lock-pass").value || "").replace(/\D/g, "").trim();
       btn.disabled = true;
       btn.textContent = "Verificando...";
@@ -1836,8 +1837,9 @@
 
       el.addEventListener("input", () => {
         const start = el.selectionStart;
-        el.value = String(el.value || "").replace(/\D/g, "");
+        el.value = String(el.value || "").replace(/\D/g, "").slice(0, 6);
         try { el.setSelectionRange(start, start); } catch {}
+        if (el.value.length === 6) submitLock();
       });
       el.addEventListener("keydown", e => {
         if (e.key === "Enter") submitLock();
