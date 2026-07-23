@@ -959,6 +959,7 @@
           Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
           Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
         </p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 10 · Jul/2026</p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
           <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
@@ -2512,7 +2513,16 @@
     bootstrapAuth();
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshing) return;
+        refreshing = true;
+        location.reload();
+      });
+      navigator.serviceWorker.register("./sw.js").then((reg) => {
+        reg.update().catch(() => {});
+        setInterval(() => reg.update().catch(() => {}), 60 * 1000);
+      }).catch(() => {});
     }
 
     document.addEventListener("keydown", (event) => {
