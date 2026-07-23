@@ -976,7 +976,7 @@
           Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
           Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
         </p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 15 · Jul/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 16 · Jul/2026</p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
           <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
@@ -1406,7 +1406,16 @@
       if (!cryptoKey) throw new Error("Sem chave");
       const skipCloud = !!options.skipCloud;
       const payload = await encryptJson(appData, cryptoKey);
-      const updatedAt = options.updatedAt || Date.now();
+      // Não avançar updatedAt em gravação local de emergência (senão a web
+      // acha que é mais nova e apaga o que o celular subiu).
+      let updatedAt;
+      if (options.updatedAt != null) {
+        updatedAt = options.updatedAt;
+      } else if (skipCloud) {
+        updatedAt = getLocalUpdatedAt() || Date.now();
+      } else {
+        updatedAt = Date.now();
+      }
       localStorage.setItem(DATA_KEY, JSON.stringify(payload));
       localStorage.setItem(META_KEY, JSON.stringify({ updatedAt }));
       localStorage.removeItem(LEGACY_STORAGE_KEY);
@@ -1415,7 +1424,8 @@
       localStorage.removeItem("orcamento_mensal");
       localStorage.removeItem("orcamento_mensal_version");
       if (!skipCloud) {
-        await pushToCloud({ ...payload, updatedAt });
+        const ok = await pushToCloud({ ...payload, updatedAt });
+        if (!ok) throw new Error("Falha ao sincronizar com a nuvem");
       }
     }
 
@@ -1580,12 +1590,18 @@
         const remote = await fetchCloudPayload();
         const localAt = getLocalUpdatedAt();
 
+        // Nuvem vazia: sobe o local uma vez (primeiro aparelho)
         if (!remote) {
           if (planilhaTemDados(appData)) {
-            const payload = await encryptJson(appData, cryptoKey);
+            const payload = JSON.parse(localStorage.getItem(DATA_KEY) || "null")
+              || await encryptJson(appData, cryptoKey);
             const updatedAt = localAt || Date.now();
             localStorage.setItem(META_KEY, JSON.stringify({ updatedAt }));
-            await pushToCloud({ ...payload, updatedAt });
+            await pushToCloud({
+              iv: payload.iv,
+              data: payload.data,
+              updatedAt
+            });
           } else {
             setSyncState("idle");
           }
@@ -1601,6 +1617,7 @@
           return { changed: false };
         }
 
+        // Só puxa. Nunca sobrescreve a nuvem ao abrir (isso apagava o celular).
         if (remoteAt > localAt) {
           appData = remoteData;
           localStorage.setItem(DATA_KEY, JSON.stringify({ iv: remote.iv, data: remote.data }));
@@ -1609,16 +1626,7 @@
           return { changed: true };
         }
 
-        if (planilhaTemDados(appData) && localAt >= remoteAt) {
-          const payload = JSON.parse(localStorage.getItem(DATA_KEY) || "null");
-          if (payload && payload.iv) {
-            await pushToCloud({ ...payload, updatedAt: localAt || Date.now() });
-          } else {
-            setSyncState("ok");
-          }
-        } else {
-          setSyncState("ok");
-        }
+        setSyncState("ok");
         return { changed: false };
       } catch (err) {
         console.error(err);
@@ -1633,18 +1641,29 @@
         return;
       }
       if (!isCloudConfigured()) {
-        alert("Conecte a nuvem colando a URL do Firebase.");
+        alert("Nuvem não configurada.");
         return;
       }
       if (hasUnsavedChanges) {
-        await persistEncrypted();
-        hasUnsavedChanges = false;
+        try {
+          await persistEncrypted();
+          hasUnsavedChanges = false;
+        } catch (err) {
+          alert("Não foi possível salvar/subir. Verifique a internet e tente de novo.");
+          updateSaveStatus();
+          return;
+        }
       } else {
         const result = await syncFromCloud();
-        if (!result.changed && planilhaTemDados(appData)) {
+        // Se local está à frente da nuvem (salvou offline), sobe agora
+        const remote = await fetchCloudPayload().catch(() => null);
+        const localAt = getLocalUpdatedAt();
+        const remoteAt = remote ? Number(remote.updatedAt) || 0 : 0;
+        if (!result.changed && planilhaTemDados(appData) && localAt > remoteAt) {
           const payload = JSON.parse(localStorage.getItem(DATA_KEY) || "null");
-          const updatedAt = getLocalUpdatedAt() || Date.now();
-          if (payload) await pushToCloud({ ...payload, updatedAt });
+          if (payload && payload.iv) {
+            await pushToCloud({ ...payload, updatedAt: localAt });
+          }
         }
       }
       updateSaveStatus();
@@ -1652,6 +1671,18 @@
       else if (currentView === "detail") renderDetail();
       else renderDashboard();
       refreshCloudSetupUi();
+    }
+
+    async function pullCloudIfVisible() {
+      if (document.visibilityState !== "visible") return;
+      if (!cryptoKey || !isCloudConfigured()) return;
+      if (hasUnsavedChanges) return;
+      const result = await syncFromCloud();
+      if (result.changed) {
+        if (currentView === "daily") renderDaily();
+        else if (currentView === "detail") renderDetail();
+        else renderDashboard();
+      }
     }
 
     async function loadDraftFromStorage() {
@@ -2325,12 +2356,14 @@
         if (isCloudConfigured() && syncState === "ok") {
           alert("Alterações salvas neste aparelho e sincronizadas na nuvem.");
         } else if (isCloudConfigured()) {
-          alert("Alterações salvas neste aparelho. A nuvem não respondeu — tente Sincronizar agora.");
+          alert("Salvo neste aparelho, mas a nuvem falhou. Toque em Sincronizar agora.");
         } else {
-          alert("Alterações salvas neste aparelho. Para sync entre aparelhos, conecte a nuvem em Hoje.");
+          alert("Alterações salvas neste aparelho.");
         }
       } catch (err) {
-        alert("Não foi possível salvar. Tente novamente.");
+        console.error(err);
+        updateSaveStatus();
+        alert("Não foi possível salvar/sincronizar. Verifique a internet e tente de novo.");
       }
     }
 
@@ -2826,6 +2859,16 @@
     /* ---------- init ---------- */
 
     bootstrapAuth();
+
+    document.addEventListener("visibilitychange", () => {
+      pullCloudIfVisible();
+    });
+    window.addEventListener("focus", () => {
+      pullCloudIfVisible();
+    });
+    setInterval(() => {
+      pullCloudIfVisible();
+    }, 30 * 1000);
 
     if ("serviceWorker" in navigator) {
       let refreshing = false;
