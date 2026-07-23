@@ -123,6 +123,36 @@
       gap: 0.5rem;
     }
 
+    .daily-form .row.full {
+      grid-template-columns: 1fr;
+    }
+
+    .daily-form select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 0.7rem 0.75rem;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+
+    .daily-form select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .pay-tag {
+      display: inline-block;
+      margin-top: 0.2rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--accent);
+    }
+
     .daily-form input {
       width: 100%;
       background: var(--bg);
@@ -898,6 +928,14 @@
           <input type="text" id="daily-desc" placeholder="O que gastou?" autocomplete="off">
           <input type="text" id="daily-valor" class="money-input" inputmode="numeric" placeholder="R$ 0,00">
         </div>
+        <div class="row full">
+          <select id="daily-forma">
+            <option value="">Como pagou?</option>
+            <option value="pix">PIX</option>
+            <option value="credito_btg">Crédito BTG</option>
+            <option value="credito_nubank">Crédito Nubank</option>
+          </select>
+        </div>
         <button onclick="addDailyExpense()">+ Lançar gasto do dia</button>
       </div>
 
@@ -907,27 +945,23 @@
       </div>
 
       <div class="daily-list">
-        <h3>Histórico do mês</h3>
+        <h3>Histórico do ciclo</h3>
         <div id="daily-history-list"></div>
       </div>
 
       <div class="settings-box">
-        <h3>Quanto posso gastar neste mês</h3>
+        <h3>Quanto posso gastar neste ciclo</h3>
         <div class="field">
           <label for="livre-override">Saldo livre manual (opcional)</label>
-          <input type="text" id="livre-override" class="money-input" inputmode="numeric" placeholder="Automático = sobra do próximo mês">
-        </div>
-        <div class="field">
-          <label for="livre-fim">Até quando (fim do período)</label>
-          <input type="date" id="livre-fim">
+          <input type="text" id="livre-override" class="money-input" inputmode="numeric" placeholder="Automático = sobra do mês de pagamento">
         </div>
         <p class="settings-hint" id="livre-hint">
-          Você vive neste mês e paga no próximo. O limite automático é a sobra do mês seguinte (Receita − Fixos).
-          Preencha a planilha do próximo mês para o app calcular. Ou informe o valor manual acima.
+          Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
+          Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
         </p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
-          <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do próximo mês</button>
+          <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
           <button class="secondary" onclick="showDetail(getDailyContext().year, getDailyContext().mes)">Abrir este mês</button>
         </div>
       </div>
@@ -1594,6 +1628,16 @@
 
     /* ---------- tela diária ---------- */
 
+    const FORMAS_PAGAMENTO = {
+      pix: "PIX",
+      credito_btg: "Crédito BTG",
+      credito_nubank: "Crédito Nubank"
+    };
+
+    function formaLabel(forma) {
+      return FORMAS_PAGAMENTO[forma] || "";
+    }
+
     function getDailyContext() {
       const now = new Date();
       return { year: now.getFullYear(), mes: now.getMonth(), hoje: todayISO() };
@@ -1609,13 +1653,88 @@
       return { year, mes: mes + 1 };
     }
 
-    function calcNextMonthSaldo(year, mes) {
-      const next = getNextMonthRef(year, mes);
-      const nextMonth = normalizeMonth(getYearData(next.year)[next.mes]);
-      const t = monthTotals(nextMonth);
+    function dateToISO(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function isBusinessDay(d) {
+      const day = d.getDay();
+      return day !== 0 && day !== 6;
+    }
+
+    function nthBusinessDay(year, mes, n) {
+      let count = 0;
+      let lastBiz = null;
+      const d = new Date(year, mes, 1);
+      while (d.getMonth() === mes) {
+        if (isBusinessDay(d)) {
+          count++;
+          lastBiz = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          if (count === n) return lastBiz;
+        }
+        d.setDate(d.getDate() + 1);
+      }
+      return lastBiz || new Date(year, mes, 1);
+    }
+
+    function getBillingCycle(asOfISO) {
+      const asOf = parseISODate(asOfISO);
+      const y = asOf.getFullYear();
+      const m = asOf.getMonth();
+      const fifthThis = nthBusinessDay(y, m, 5);
+      const fifthThisISO = dateToISO(fifthThis);
+
+      if (asOfISO >= fifthThisISO) {
+        const next = getNextMonthRef(y, m);
+        const fifthNext = nthBusinessDay(next.year, next.mes, 5);
+        return {
+          startISO: fifthThisISO,
+          endISO: dateToISO(fifthNext),
+          cycleYear: y,
+          cycleMes: m,
+          payYear: next.year,
+          payMes: next.mes
+        };
+      }
+
+      const prev = getPrevMonthRef(y, m);
+      const fifthPrev = nthBusinessDay(prev.year, prev.mes, 5);
       return {
-        year: next.year,
-        mes: next.mes,
+        startISO: dateToISO(fifthPrev),
+        endISO: fifthThisISO,
+        cycleYear: prev.year,
+        cycleMes: prev.mes,
+        payYear: y,
+        payMes: m
+      };
+    }
+
+    function collectGastosInRange(startISO, endISO) {
+      const start = parseISODate(startISO);
+      const end = parseISODate(endISO);
+      const items = [];
+      const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+      while (cursor <= end) {
+        const year = cursor.getFullYear();
+        const mes = cursor.getMonth();
+        const month = normalizeMonth(getYearData(year)[mes]);
+        (month.gastosDiarios || []).forEach(g => {
+          if (g.data >= startISO && g.data <= endISO) items.push(g);
+        });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+      return items;
+    }
+
+    function calcPayMonthSaldo(payYear, payMes) {
+      const payMonth = normalizeMonth(getYearData(payYear)[payMes]);
+      const t = monthTotals(payMonth);
+      return {
+        year: payYear,
+        mes: payMes,
         receita: t.receita,
         fixos: t.fixos,
         saldo: t.receita - t.fixos,
@@ -1624,14 +1743,15 @@
     }
 
     function calcDailyBudget(year, mes, asOfISO) {
-      const month = normalizeMonth(getYearData(year)[mes]);
-      const next = calcNextMonthSaldo(year, mes);
-      const manual = month.orcamentoLivre != null;
+      const cycle = getBillingCycle(asOfISO);
+      const cycleMonth = normalizeMonth(getYearData(cycle.cycleYear)[cycle.cycleMes]);
+      const pay = calcPayMonthSaldo(cycle.payYear, cycle.payMes);
+      const manual = cycleMonth.orcamentoLivre != null;
       const livreBase = manual
-        ? Number(month.orcamentoLivre)
-        : Math.max(0, next.saldo);
+        ? Number(cycleMonth.orcamentoLivre)
+        : Math.max(0, pay.saldo);
 
-      const gastos = month.gastosDiarios || [];
+      const gastos = collectGastosInRange(cycle.startISO, cycle.endISO);
       const gastoAntes = gastos
         .filter(g => g.data < asOfISO)
         .reduce((s, g) => s + (g.valor || 0), 0);
@@ -1643,9 +1763,8 @@
       const restanteAntes = livreBase - gastoAntes;
       const restante = livreBase - gastoAteAgora;
 
-      const fimISO = month.periodoFim || `${year}-${String(mes + 1).padStart(2, "0")}-${String(daysInMonth(year, mes)).padStart(2, "0")}`;
       const asOf = parseISODate(asOfISO);
-      const fim = parseISODate(fimISO);
+      const fim = parseISODate(cycle.endISO);
       const msDay = 24 * 60 * 60 * 1000;
       let diasRestantes = Math.floor((fim - asOf) / msDay) + 1;
       if (diasRestantes < 1) diasRestantes = 1;
@@ -1662,22 +1781,26 @@
         diasRestantes,
         porDia,
         aindaHoje,
-        fimISO,
+        inicioISO: cycle.startISO,
+        fimISO: cycle.endISO,
         manual,
-        nextNome: `${MESES_LONGO[next.mes]}/${next.year}`,
-        nextReceita: next.receita,
-        nextFixos: next.fixos,
-        nextSaldo: next.saldo,
-        nextHasData: next.hasData,
-        nextYear: next.year,
-        nextMes: next.mes
+        cycleNome: `${MESES_LONGO[cycle.cycleMes]}/${cycle.cycleYear}`,
+        nextNome: `${MESES_LONGO[pay.mes]}/${pay.year}`,
+        nextReceita: pay.receita,
+        nextFixos: pay.fixos,
+        nextSaldo: pay.saldo,
+        nextHasData: pay.hasData,
+        nextYear: pay.year,
+        nextMes: pay.mes,
+        cycleYear: cycle.cycleYear,
+        cycleMes: cycle.cycleMes
       };
     }
 
     function openNextMonthPlan() {
-      const { year, mes } = getDailyContext();
-      const next = getNextMonthRef(year, mes);
-      showDetail(next.year, next.mes);
+      const { hoje } = getDailyContext();
+      const budget = calcDailyBudget(0, 0, hoje);
+      showDetail(budget.nextYear, budget.nextMes);
     }
 
     function showDaily() {
@@ -1689,11 +1812,11 @@
 
     function renderDaily() {
       const { year, mes, hoje } = getDailyContext();
-      const month = getYearData(year)[mes];
       const budget = calcDailyBudget(year, mes, hoje);
+      const cycleMonth = getYearData(budget.cycleYear)[budget.cycleMes];
 
       document.getElementById("daily-date-label").textContent =
-        `${MESES_LONGO[mes]} de ${year} · ${formatDateBR(hoje)}`;
+        `Ciclo ${formatDateBR(budget.inicioISO)} → ${formatDateBR(budget.fimISO)} · ${formatDateBR(hoje)}`;
 
       let tone = "ok";
       if (budget.aindaHoje < 0) tone = "bad";
@@ -1707,7 +1830,7 @@
 
       document.getElementById("daily-cards").innerHTML = `
         <div class="card">
-          <label>Limite deste mês</label>
+          <label>Limite do ciclo</label>
           <div class="value positive">${formatMoney(budget.livreBase)}</div>
         </div>
         <div class="card">
@@ -1727,32 +1850,28 @@
           <div class="value ${budget.nextSaldo >= 0 ? "positive" : "negative"}">${formatMoney(budget.nextSaldo)}</div>
         </div>
         <div class="card">
-          <label>Período até</label>
-          <div class="value">${formatDateBR(budget.fimISO)}</div>
+          <label>5º dia útil → 5º dia útil</label>
+          <div class="value" style="font-size:1rem">${formatDateBR(budget.inicioISO)} → ${formatDateBR(budget.fimISO)}</div>
         </div>
       `;
 
       const livreInput = document.getElementById("livre-override");
-      const fimInput = document.getElementById("livre-fim");
       if (document.activeElement !== livreInput) {
-        livreInput.value = month.orcamentoLivre != null ? formatMoney(month.orcamentoLivre) : "";
-      }
-      if (document.activeElement !== fimInput) {
-        fimInput.value = budget.fimISO;
+        livreInput.value = cycleMonth.orcamentoLivre != null ? formatMoney(cycleMonth.orcamentoLivre) : "";
       }
 
-      if (month.orcamentoLivre != null) {
+      if (cycleMonth.orcamentoLivre != null) {
         document.getElementById("livre-hint").textContent =
-          `Usando valor manual. A sobra automática de ${budget.nextNome} seria ${formatMoney(budget.nextSaldo)} (Receita ${formatMoney(budget.nextReceita)} − Fixos ${formatMoney(budget.nextFixos)}).`;
+          `Usando valor manual. A sobra automática de ${budget.nextNome} seria ${formatMoney(budget.nextSaldo)} (Receita ${formatMoney(budget.nextReceita)} − Fixos ${formatMoney(budget.nextFixos)}). Ciclo: ${formatDateBR(budget.inicioISO)} até ${formatDateBR(budget.fimISO)}.`;
       } else if (!budget.nextHasData) {
         document.getElementById("livre-hint").textContent =
-          `A planilha de ${budget.nextNome} ainda está vazia. Preencha receita e fixos do próximo mês (ou informe o saldo livre manual) — você vive agora e paga no próximo.`;
+          `A planilha de ${budget.nextNome} ainda está vazia. Preencha receita e fixos do mês de pagamento (ou informe o saldo livre manual). Ciclo atual: ${formatDateBR(budget.inicioISO)} → ${formatDateBR(budget.fimISO)}.`;
       } else {
         document.getElementById("livre-hint").textContent =
-          `Limite automático = sobra de ${budget.nextNome}: ${formatMoney(budget.nextReceita)} − ${formatMoney(budget.nextFixos)} = ${formatMoney(budget.nextSaldo)}. Os gastos deste mês consomem essa sobra (pago no próximo).`;
+          `Ciclo ${formatDateBR(budget.inicioISO)} → ${formatDateBR(budget.fimISO)}. Limite = sobra de ${budget.nextNome}: ${formatMoney(budget.nextReceita)} − ${formatMoney(budget.nextFixos)} = ${formatMoney(budget.nextSaldo)}.`;
       }
 
-      const todayItems = (month.gastosDiarios || []).filter(g => g.data === hoje).slice().reverse();
+      const todayItems = collectGastosInRange(hoje, hoje).slice().reverse();
       const todayList = document.getElementById("daily-today-list");
       if (!todayItems.length) {
         todayList.innerHTML = `<div class="empty-hint">Nenhum gasto lançado hoje</div>`;
@@ -1761,7 +1880,7 @@
           <div class="daily-item">
             <div class="meta">
               <div class="desc">${escapeHtml(g.desc || "Gasto")}</div>
-              <div class="when">${formatDateBR(g.data)}</div>
+              <div class="when">${formatDateBR(g.data)}${g.forma ? ` · <span class="pay-tag">${escapeHtml(formaLabel(g.forma))}</span>` : ""}</div>
             </div>
             <div class="val">${formatMoney(g.valor)}</div>
             <button class="del" onclick="removeDailyExpense('${g.id}')">&times;</button>
@@ -1769,24 +1888,28 @@
         `).join("");
       }
 
+      const cycleGastos = collectGastosInRange(budget.inicioISO, budget.fimISO);
       const byDay = {};
-      (month.gastosDiarios || []).forEach(g => {
+      cycleGastos.forEach(g => {
         byDay[g.data] = (byDay[g.data] || 0) + (g.valor || 0);
       });
       const days = Object.keys(byDay).sort().reverse();
       const hist = document.getElementById("daily-history-list");
       if (!days.length) {
-        hist.innerHTML = `<div class="empty-hint">Ainda sem histórico neste mês</div>`;
+        hist.innerHTML = `<div class="empty-hint">Ainda sem histórico neste ciclo</div>`;
       } else {
-        hist.innerHTML = days.map(d => `
+        hist.innerHTML = days.map(d => {
+          const formas = [...new Set(cycleGastos.filter(g => g.data === d && g.forma).map(g => formaLabel(g.forma)))].join(", ");
+          return `
           <div class="daily-item">
             <div class="meta">
               <div class="desc">${formatDateBR(d)}${d === hoje ? " · hoje" : ""}</div>
-              <div class="when">${(month.gastosDiarios || []).filter(g => g.data === d).length} lançamento(s)</div>
+              <div class="when">${cycleGastos.filter(g => g.data === d).length} lançamento(s)${formas ? ` · ${escapeHtml(formas)}` : ""}</div>
             </div>
             <div class="val">${formatMoney(byDay[d])}</div>
           </div>
-        `).join("");
+        `;
+        }).join("");
       }
 
       updateSaveStatus();
@@ -1794,46 +1917,62 @@
 
     function addDailyExpense() {
       const desc = document.getElementById("daily-desc").value.trim() || "Gasto do dia";
+      const forma = document.getElementById("daily-forma").value;
       const valor = digitsToMoney(dailyValorDigits);
       if (!valor) {
         alert("Informe um valor.");
+        return;
+      }
+      if (!forma) {
+        alert("Selecione como pagou: PIX, Crédito BTG ou Crédito Nubank.");
         return;
       }
 
       const { year, mes, hoje } = getDailyContext();
       const months = getYearData(year);
       months[mes].gastosDiarios = months[mes].gastosDiarios || [];
-      months[mes].gastosDiarios.push({ id: uid(), data: hoje, desc, valor });
+      months[mes].gastosDiarios.push({ id: uid(), data: hoje, desc, valor, forma });
       setYearData(year, months);
 
       document.getElementById("daily-desc").value = "";
       document.getElementById("daily-valor").value = "";
+      document.getElementById("daily-forma").value = "";
       dailyValorDigits = "";
       renderDaily();
     }
 
     function removeDailyExpense(id) {
-      const { year, mes } = getDailyContext();
-      const months = getYearData(year);
-      months[mes].gastosDiarios = (months[mes].gastosDiarios || []).filter(g => g.id !== id);
-      setYearData(year, months);
+      const { year } = getDailyContext();
+      // procura no mês atual e no anterior (ciclo pode atravessar virada)
+      for (const y of [year, year - 1]) {
+        const months = getYearData(y);
+        for (let i = 0; i < 12; i++) {
+          const list = months[i].gastosDiarios || [];
+          const next = list.filter(g => g.id !== id);
+          if (next.length !== list.length) {
+            months[i].gastosDiarios = next;
+            setYearData(y, months);
+            renderDaily();
+            return;
+          }
+        }
+      }
       renderDaily();
     }
 
     function applyDailySettings() {
-      const { year, mes } = getDailyContext();
-      const months = getYearData(year);
+      const { hoje } = getDailyContext();
+      const budget = calcDailyBudget(0, 0, hoje);
+      const months = getYearData(budget.cycleYear);
       const raw = document.getElementById("livre-override").value.trim();
-      const fim = document.getElementById("livre-fim").value;
 
       if (!raw) {
-        months[mes].orcamentoLivre = null;
+        months[budget.cycleMes].orcamentoLivre = null;
       } else {
         const digits = raw.replace(/\D/g, "");
-        months[mes].orcamentoLivre = digitsToMoney(digits);
+        months[budget.cycleMes].orcamentoLivre = digitsToMoney(digits);
       }
-      months[mes].periodoFim = fim || null;
-      setYearData(year, months);
+      setYearData(budget.cycleYear, months);
       renderDaily();
     }
 
@@ -2128,7 +2267,7 @@
           <div class="daily-item">
             <div class="meta">
               <div class="desc">${escapeHtml(g.desc || "Gasto")}</div>
-              <div class="when">${formatDateBR(g.data)}</div>
+              <div class="when">${formatDateBR(g.data)}${g.forma ? ` · <span class="pay-tag">${escapeHtml(formaLabel(g.forma))}</span>` : ""}</div>
             </div>
             <div class="val">${formatMoney(g.valor)}</div>
           </div>
