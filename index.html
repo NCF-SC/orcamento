@@ -959,7 +959,7 @@
           Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
           Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
         </p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 10 · Jul/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 11 · Jul/2026</p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
           <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
@@ -1374,6 +1374,20 @@
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem("orcamento_mensal");
       localStorage.removeItem("orcamento_mensal_version");
+    }
+
+    /** Grava rascunho antes de reload/update para não perder edições. */
+    async function persistBeforeUnload() {
+      if (!cryptoKey) return false;
+      try {
+        await persistEncrypted();
+        hasUnsavedChanges = false;
+        updateSaveStatus();
+        return true;
+      } catch (err) {
+        console.error(err);
+        return false;
+      }
     }
 
     function planilhaTemDados(data) {
@@ -2517,7 +2531,8 @@
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (refreshing) return;
         refreshing = true;
-        location.reload();
+        // Sempre grava a planilha antes do reload da atualização
+        Promise.resolve(persistBeforeUnload()).finally(() => location.reload());
       });
       navigator.serviceWorker.register("./sw.js").then((reg) => {
         reg.update().catch(() => {});
@@ -2531,6 +2546,8 @@
 
     window.addEventListener("beforeunload", (event) => {
       if (!hasUnsavedChanges) return;
+      // tenta gravar em background; o aviso cobre se o browser bloquear async
+      persistBeforeUnload();
       event.preventDefault();
       event.returnValue = "";
     });
