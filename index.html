@@ -976,7 +976,7 @@
           Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
           Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
         </p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 16 · Jul/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 17 · Jul/2026</p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
           <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
@@ -987,8 +987,8 @@
       <div class="settings-box" id="cloud-box">
         <h3>Nuvem (sync entre aparelhos)</h3>
         <p class="settings-hint" id="sync-hint">
-          Nuvem ligada. Ao salvar, todos os aparelhos com a senha recebem a planilha (criptografada).
-          Quem abrir depois baixa a versão mais nova ao desbloquear.
+          Conta na nuvem: ao entrar com a senha, em qualquer aparelho ou guia, você vê os mesmos dados.
+          Ao Salvar, sobe para a nuvem.
         </p>
         <div class="field cloud-setup" id="cloud-setup-fields" style="display:none">
           <label for="fb-url">URL do Realtime Database (Firebase)</label>
@@ -1579,6 +1579,16 @@
       return json;
     }
 
+    async function applyRemotePayload(remote) {
+      const remoteData = await decryptJson({ iv: remote.iv, data: remote.data }, cryptoKey);
+      appData = remoteData;
+      const updatedAt = Number(remote.updatedAt) || Date.now();
+      localStorage.setItem(DATA_KEY, JSON.stringify({ iv: remote.iv, data: remote.data }));
+      localStorage.setItem(META_KEY, JSON.stringify({ updatedAt }));
+      setSyncState("ok");
+      return true;
+    }
+
     async function syncFromCloud() {
       if (!cryptoKey) return { changed: false };
       if (!isCloudConfigured()) {
@@ -1588,41 +1598,20 @@
       setSyncState("syncing");
       try {
         const remote = await fetchCloudPayload();
-        const localAt = getLocalUpdatedAt();
-
-        // Nuvem vazia: sobe o local uma vez (primeiro aparelho)
         if (!remote) {
           if (planilhaTemDados(appData)) {
-            const payload = JSON.parse(localStorage.getItem(DATA_KEY) || "null")
-              || await encryptJson(appData, cryptoKey);
-            const updatedAt = localAt || Date.now();
-            localStorage.setItem(META_KEY, JSON.stringify({ updatedAt }));
-            await pushToCloud({
-              iv: payload.iv,
-              data: payload.data,
-              updatedAt
-            });
+            await persistEncrypted();
           } else {
             setSyncState("idle");
           }
           return { changed: false };
         }
 
+        const localAt = getLocalUpdatedAt();
         const remoteAt = Number(remote.updatedAt) || 0;
-        let remoteData = null;
-        try {
-          remoteData = await decryptJson({ iv: remote.iv, data: remote.data }, cryptoKey);
-        } catch {
-          setSyncState("error", "remoto ilegível");
-          return { changed: false };
-        }
-
-        // Só puxa. Nunca sobrescreve a nuvem ao abrir (isso apagava o celular).
-        if (remoteAt > localAt) {
-          appData = remoteData;
-          localStorage.setItem(DATA_KEY, JSON.stringify({ iv: remote.iv, data: remote.data }));
-          localStorage.setItem(META_KEY, JSON.stringify({ updatedAt: remoteAt }));
-          setSyncState("ok");
+        // Nuvem manda: se for mais nova/igual, ou se local estiver vazio
+        if (!planilhaTemDados(appData) || remoteAt >= localAt) {
+          await applyRemotePayload(remote);
           return { changed: true };
         }
 
@@ -1654,17 +1643,7 @@
           return;
         }
       } else {
-        const result = await syncFromCloud();
-        // Se local está à frente da nuvem (salvou offline), sobe agora
-        const remote = await fetchCloudPayload().catch(() => null);
-        const localAt = getLocalUpdatedAt();
-        const remoteAt = remote ? Number(remote.updatedAt) || 0 : 0;
-        if (!result.changed && planilhaTemDados(appData) && localAt > remoteAt) {
-          const payload = JSON.parse(localStorage.getItem(DATA_KEY) || "null");
-          if (payload && payload.iv) {
-            await pushToCloud({ ...payload, updatedAt: localAt });
-          }
-        }
+        await loadAccountFromCloud();
       }
       updateSaveStatus();
       if (currentView === "daily") renderDaily();
@@ -1685,7 +1664,42 @@
       }
     }
 
+    /** Ao entrar: nuvem é a fonte da verdade. Local é só cache. */
+    async function loadAccountFromCloud() {
+      if (!cryptoKey) return;
+      if (!isCloudConfigured()) {
+        setSyncState("off");
+        return;
+      }
+      setSyncState("syncing");
+      try {
+        const remote = await fetchCloudPayload();
+        if (remote) {
+          try {
+            await applyRemotePayload(remote);
+          } catch (err) {
+            console.error(err);
+            setSyncState("error", "remoto ilegível");
+          }
+          return;
+        }
+        // Nuvem vazia: sobe o que tiver no aparelho (ou o seed)
+        if (!planilhaTemDados(appData)) {
+          await tryRestoreEncryptedBackup();
+        }
+        if (planilhaTemDados(appData)) {
+          await persistEncrypted();
+        } else {
+          setSyncState("idle");
+        }
+      } catch (err) {
+        console.error(err);
+        setSyncState("error", "sem rede");
+      }
+    }
+
     async function loadDraftFromStorage() {
+      // 1) Cache local (serve se estiver offline)
       const enc = localStorage.getItem(DATA_KEY);
       if (enc && cryptoKey) {
         try {
@@ -1698,7 +1712,6 @@
         if (legacy) {
           try {
             appData = JSON.parse(legacy);
-            if (cryptoKey) await persistEncrypted({ skipCloud: true });
           } catch {
             appData = {};
           }
@@ -1707,17 +1720,9 @@
         }
       }
 
-      if (!planilhaTemDados(appData)) {
-        const restored = await tryRestoreEncryptedBackup();
-        if (restored) {
-          hasUnsavedChanges = false;
-          await syncFromCloud();
-          updateSaveStatus();
-          return;
-        }
-      }
+      // 2) Sempre preferir a nuvem ao entrar (guia anônima, outro celular, etc.)
+      await loadAccountFromCloud();
 
-      await syncFromCloud();
       hasUnsavedChanges = false;
       updateSaveStatus();
     }
@@ -1731,7 +1736,8 @@
         const restored = await decryptJson(pack, cryptoKey);
         if (!planilhaTemDados(restored)) return false;
         appData = restored;
-        await persistEncrypted({ skipCloud: true });
+        // updatedAt 0: qualquer save/nuvem real ganha deste seed
+        await persistEncrypted({ skipCloud: true, updatedAt: 0 });
         return true;
       } catch (err) {
         console.error(err);
