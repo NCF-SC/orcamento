@@ -9,6 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.json">
   <title>Orçamento Diário</title>
+  <script src="./firebase-config.js"></script>
   <style>
     :root {
       --bg: #0f1419;
@@ -436,6 +437,22 @@
     .save-status.dirty {
       color: var(--yellow);
       font-weight: 600;
+    }
+
+    .save-status.syncing { color: var(--accent); }
+    .save-status.synced { color: var(--green); }
+    .save-status.sync-err { color: var(--red); }
+
+    .cloud-setup input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 0.65rem 0.75rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      margin-top: 0.4rem;
     }
 
     .year-select {
@@ -959,12 +976,28 @@
           Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
           Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
         </p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 11 · Jul/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 12 · Jul/2026</p>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
           <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
           <button class="secondary" onclick="showDetail(getDailyContext().year, getDailyContext().mes)">Abrir este mês</button>
         </div>
+      </div>
+
+      <div class="settings-box" id="cloud-box">
+        <h3>Nuvem (sync entre aparelhos)</h3>
+        <p class="settings-hint" id="sync-hint">
+          Ao salvar, a planilha criptografada sobe automaticamente. No outro aparelho, ao desbloquear, baixa a versão mais nova.
+        </p>
+        <div class="field cloud-setup" id="cloud-setup-fields">
+          <label for="fb-url">URL do Realtime Database (Firebase)</label>
+          <input type="url" id="fb-url" placeholder="https://SEU-PROJETO-default-rtdb.firebaseio.com" autocomplete="off">
+        </div>
+        <div class="actions" style="margin-top:0.75rem">
+          <button class="secondary" onclick="saveFirebaseConfigFromUi()">Conectar nuvem</button>
+          <button class="secondary" onclick="syncNow()">Sincronizar agora</button>
+        </div>
+        <p class="settings-hint" id="sync-status-line" style="margin-top:0.6rem">Status: —</p>
       </div>
 
       <div class="save-status" id="save-status-daily">Tudo salvo</div>
@@ -1015,7 +1048,7 @@
         <span class="save-status" id="save-status-dashboard">Tudo salvo</span>
       </div>
 
-      <footer>Os dados só são gravados quando você clicar em Salvar alterações</footer>
+        <footer>Salvar grava neste aparelho e, se a nuvem estiver conectada, sincroniza automaticamente</footer>
     </div>
 
     <!-- ============ DETALHE DO MÊS ============ -->
@@ -1154,6 +1187,8 @@
     const LEGACY_STORAGE_KEY = "orcamento_mensal_v2";
     const AUTH_KEY = "orcamento_auth_v1";
     const DATA_KEY = "orcamento_data_enc_v1";
+    const META_KEY = "orcamento_sync_meta_v1";
+    const FB_CFG_KEY = "orcamento_firebase_cfg_v1";
     const SESSION_FLAG = "orcamento_unlocked_v1";
     const SESSION_PIN = "orcamento_session_pin_v1";
 
@@ -1171,6 +1206,8 @@
     let dailyValorDigits = "";
     let cryptoKey = null;
     let yearSelectBound = false;
+    let syncState = "off"; // off | idle | syncing | ok | error
+    let syncDetail = "";
 
     /* ---------- util ---------- */
 
@@ -1365,22 +1402,28 @@
       }
     }
 
-    async function persistEncrypted() {
+    async function persistEncrypted(options = {}) {
       if (!cryptoKey) throw new Error("Sem chave");
+      const skipCloud = !!options.skipCloud;
       const payload = await encryptJson(appData, cryptoKey);
+      const updatedAt = options.updatedAt || Date.now();
       localStorage.setItem(DATA_KEY, JSON.stringify(payload));
+      localStorage.setItem(META_KEY, JSON.stringify({ updatedAt }));
       localStorage.removeItem(LEGACY_STORAGE_KEY);
       localStorage.removeItem(LEGACY_STORAGE_KEY + "_seed_version");
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem("orcamento_mensal");
       localStorage.removeItem("orcamento_mensal_version");
+      if (!skipCloud) {
+        await pushToCloud({ ...payload, updatedAt });
+      }
     }
 
     /** Grava rascunho antes de reload/update para não perder edições. */
     async function persistBeforeUnload() {
       if (!cryptoKey) return false;
       try {
-        await persistEncrypted();
+        await persistEncrypted({ skipCloud: true });
         hasUnsavedChanges = false;
         updateSaveStatus();
         return true;
@@ -1400,6 +1443,216 @@
       });
     }
 
+    /* ---------- nuvem (Firebase Realtime Database) ---------- */
+
+    function getFirebaseConfig() {
+      try {
+        const raw = localStorage.getItem(FB_CFG_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.databaseURL) return parsed;
+        }
+      } catch {}
+      const fromFile = window.FIREBASE_CONFIG || {};
+      if (fromFile.databaseURL) return fromFile;
+      return null;
+    }
+
+    function isCloudConfigured() {
+      const cfg = getFirebaseConfig();
+      return !!(cfg && cfg.databaseURL && /^https:\/\//.test(cfg.databaseURL));
+    }
+
+    function cloudUserId() {
+      return APP_GATE.hash.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+
+    function cloudEndpoint() {
+      const cfg = getFirebaseConfig();
+      if (!cfg) return null;
+      const base = String(cfg.databaseURL).replace(/\/+$/, "");
+      return `${base}/orcamento/${cloudUserId()}.json`;
+    }
+
+    function getLocalUpdatedAt() {
+      try {
+        const raw = localStorage.getItem(META_KEY);
+        if (!raw) return 0;
+        return Number(JSON.parse(raw).updatedAt) || 0;
+      } catch {
+        return 0;
+      }
+    }
+
+    function setSyncState(state, detail) {
+      syncState = state;
+      syncDetail = detail || "";
+      updateSaveStatus();
+      const line = document.getElementById("sync-status-line");
+      if (line) {
+        const labels = {
+          off: "Status: nuvem não conectada",
+          idle: "Status: pronto",
+          syncing: "Status: sincronizando…",
+          ok: "Status: sincronizado",
+          error: "Status: falha na sync" + (syncDetail ? ` (${syncDetail})` : "")
+        };
+        line.textContent = labels[state] || "Status: —";
+      }
+    }
+
+    function refreshCloudSetupUi() {
+      const input = document.getElementById("fb-url");
+      const cfg = getFirebaseConfig();
+      if (input && document.activeElement !== input) {
+        input.value = cfg && cfg.databaseURL ? cfg.databaseURL : "";
+      }
+      if (!isCloudConfigured()) setSyncState("off");
+      else if (syncState === "off") setSyncState("idle");
+    }
+
+    function saveFirebaseConfigFromUi() {
+      const input = document.getElementById("fb-url");
+      const url = String(input && input.value || "").trim().replace(/\/+$/, "");
+      if (!url) {
+        localStorage.removeItem(FB_CFG_KEY);
+        setSyncState("off");
+        alert("Cole a URL do Realtime Database do Firebase.");
+        return;
+      }
+      if (!/^https:\/\/.+\.firebaseio\.com$/i.test(url) && !/^https:\/\/.+\.firebasedatabase\.app$/i.test(url)) {
+        alert("URL inválida. Exemplo: https://meu-app-default-rtdb.firebaseio.com");
+        return;
+      }
+      localStorage.setItem(FB_CFG_KEY, JSON.stringify({ databaseURL: url }));
+      window.FIREBASE_CONFIG = { databaseURL: url };
+      setSyncState("idle");
+      alert("Nuvem conectada neste aparelho. Clique em Salvar (ou Sincronizar agora) para subir a planilha.");
+      syncNow();
+    }
+
+    async function pushToCloud(payloadWithMeta) {
+      if (!isCloudConfigured()) {
+        setSyncState("off");
+        return false;
+      }
+      const endpoint = cloudEndpoint();
+      setSyncState("syncing");
+      try {
+        const res = await fetch(endpoint, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            iv: payloadWithMeta.iv,
+            data: payloadWithMeta.data,
+            updatedAt: payloadWithMeta.updatedAt
+          })
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        setSyncState("ok");
+        return true;
+      } catch (err) {
+        console.error(err);
+        setSyncState("error", "não subiu");
+        return false;
+      }
+    }
+
+    async function fetchCloudPayload() {
+      if (!isCloudConfigured()) return null;
+      const endpoint = cloudEndpoint();
+      const res = await fetch(endpoint, { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const json = await res.json();
+      if (!json || !json.iv || !json.data) return null;
+      return json;
+    }
+
+    async function syncFromCloud() {
+      if (!cryptoKey) return { changed: false };
+      if (!isCloudConfigured()) {
+        setSyncState("off");
+        return { changed: false };
+      }
+      setSyncState("syncing");
+      try {
+        const remote = await fetchCloudPayload();
+        const localAt = getLocalUpdatedAt();
+
+        if (!remote) {
+          if (planilhaTemDados(appData)) {
+            const payload = await encryptJson(appData, cryptoKey);
+            const updatedAt = localAt || Date.now();
+            localStorage.setItem(META_KEY, JSON.stringify({ updatedAt }));
+            await pushToCloud({ ...payload, updatedAt });
+          } else {
+            setSyncState("idle");
+          }
+          return { changed: false };
+        }
+
+        const remoteAt = Number(remote.updatedAt) || 0;
+        let remoteData = null;
+        try {
+          remoteData = await decryptJson({ iv: remote.iv, data: remote.data }, cryptoKey);
+        } catch {
+          setSyncState("error", "remoto ilegível");
+          return { changed: false };
+        }
+
+        if (remoteAt > localAt) {
+          appData = remoteData;
+          localStorage.setItem(DATA_KEY, JSON.stringify({ iv: remote.iv, data: remote.data }));
+          localStorage.setItem(META_KEY, JSON.stringify({ updatedAt: remoteAt }));
+          setSyncState("ok");
+          return { changed: true };
+        }
+
+        if (planilhaTemDados(appData) && localAt >= remoteAt) {
+          const payload = JSON.parse(localStorage.getItem(DATA_KEY) || "null");
+          if (payload && payload.iv) {
+            await pushToCloud({ ...payload, updatedAt: localAt || Date.now() });
+          } else {
+            setSyncState("ok");
+          }
+        } else {
+          setSyncState("ok");
+        }
+        return { changed: false };
+      } catch (err) {
+        console.error(err);
+        setSyncState("error", "sem rede");
+        return { changed: false };
+      }
+    }
+
+    async function syncNow() {
+      if (!cryptoKey) {
+        alert("Desbloqueie o app primeiro.");
+        return;
+      }
+      if (!isCloudConfigured()) {
+        alert("Conecte a nuvem colando a URL do Firebase.");
+        return;
+      }
+      if (hasUnsavedChanges) {
+        await persistEncrypted();
+        hasUnsavedChanges = false;
+      } else {
+        const result = await syncFromCloud();
+        if (!result.changed && planilhaTemDados(appData)) {
+          const payload = JSON.parse(localStorage.getItem(DATA_KEY) || "null");
+          const updatedAt = getLocalUpdatedAt() || Date.now();
+          if (payload) await pushToCloud({ ...payload, updatedAt });
+        }
+      }
+      updateSaveStatus();
+      if (currentView === "daily") renderDaily();
+      else if (currentView === "detail") renderDetail();
+      else renderDashboard();
+      refreshCloudSetupUi();
+    }
+
     async function loadDraftFromStorage() {
       const enc = localStorage.getItem(DATA_KEY);
       if (enc && cryptoKey) {
@@ -1413,7 +1666,7 @@
         if (legacy) {
           try {
             appData = JSON.parse(legacy);
-            if (cryptoKey) await persistEncrypted();
+            if (cryptoKey) await persistEncrypted({ skipCloud: true });
           } catch {
             appData = {};
           }
@@ -1426,11 +1679,13 @@
         const restored = await tryRestoreEncryptedBackup();
         if (restored) {
           hasUnsavedChanges = false;
+          await syncFromCloud();
           updateSaveStatus();
           return;
         }
       }
 
+      await syncFromCloud();
       hasUnsavedChanges = false;
       updateSaveStatus();
     }
@@ -1444,7 +1699,7 @@
         const restored = await decryptJson(pack, cryptoKey);
         if (!planilhaTemDados(restored)) return false;
         appData = restored;
-        await persistEncrypted();
+        await persistEncrypted({ skipCloud: true });
         return true;
       } catch (err) {
         console.error(err);
@@ -1522,6 +1777,7 @@
       closeCopyModal();
       initYearSelect();
       bindDailyInputs();
+      refreshCloudSetupUi();
       showDaily();
     }
 
@@ -1622,10 +1878,26 @@
     }
 
     function updateSaveStatus() {
-      const text = hasUnsavedChanges ? "Alterações não salvas" : "Tudo salvo";
+      let text = hasUnsavedChanges ? "Alterações não salvas" : "Tudo salvo";
+      let extraClass = hasUnsavedChanges ? "dirty" : "";
+      if (!hasUnsavedChanges) {
+        if (syncState === "syncing") {
+          text = "Sincronizando…";
+          extraClass = "syncing";
+        } else if (syncState === "ok") {
+          text = "Salvo + nuvem";
+          extraClass = "synced";
+        } else if (syncState === "error") {
+          text = "Salvo (nuvem falhou)";
+          extraClass = "sync-err";
+        } else if (syncState === "off") {
+          text = "Tudo salvo (só neste aparelho)";
+        }
+      }
       document.querySelectorAll(".save-status").forEach(el => {
         el.textContent = text;
-        el.classList.toggle("dirty", hasUnsavedChanges);
+        el.classList.remove("dirty", "syncing", "synced", "sync-err");
+        if (extraClass) el.classList.add(extraClass);
       });
     }
 
@@ -2027,7 +2299,13 @@
         await persistEncrypted();
         hasUnsavedChanges = false;
         updateSaveStatus();
-        alert("Alterações salvas e criptografadas neste aparelho.");
+        if (isCloudConfigured() && syncState === "ok") {
+          alert("Alterações salvas neste aparelho e sincronizadas na nuvem.");
+        } else if (isCloudConfigured()) {
+          alert("Alterações salvas neste aparelho. A nuvem não respondeu — tente Sincronizar agora.");
+        } else {
+          alert("Alterações salvas neste aparelho. Para sync entre aparelhos, conecte a nuvem em Hoje.");
+        }
       } catch (err) {
         alert("Não foi possível salvar. Tente novamente.");
       }

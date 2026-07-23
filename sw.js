@@ -1,5 +1,5 @@
-const CACHE = "orcamento-v11";
-const ASSETS = ["./manifest.json", "./icon.svg", "./restore-pack.json"];
+const CACHE = "orcamento-v12";
+const ASSETS = ["./manifest.json", "./icon.svg", "./restore-pack.json", "./firebase-config.js"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
@@ -23,9 +23,10 @@ self.addEventListener("fetch", (event) => {
     req.mode === "navigate" ||
     url.pathname.endsWith("/") ||
     url.pathname.endsWith(".html") ||
-    url.pathname.endsWith("sw.js");
+    url.pathname.endsWith("sw.js") ||
+    url.pathname.endsWith("firebase-config.js");
 
-  // HTML e SW sempre da rede (evita ficar preso em versão antiga)
+  // HTML, SW e config sempre da rede
   if (isAppShell) {
     event.respondWith(
       fetch(req, { cache: "no-store" }).catch(() => caches.match("./index.html"))
