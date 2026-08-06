@@ -1,7 +1,7 @@
 {
-  "name": "Orçamento Diário",
+  "name": "Orçamento Mensal",
   "short_name": "Orçamento",
-  "description": "Controle diário de gastos com planilha mensal",
+  "description": "Planilha mensal de receitas, despesas, ativos e dívidas",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f1419",

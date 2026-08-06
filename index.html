@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.json">
-  <title>Orçamento Diário</title>
+  <title>Orçamento Mensal</title>
   <script src="./firebase-config.js"></script>
   <style>
     :root {
@@ -36,7 +36,7 @@
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding: 1rem 1rem 5.5rem;
+      padding: 1rem;
     }
 
     .container {
@@ -44,178 +44,6 @@
       margin: 0 auto;
     }
 
-    .bottom-nav {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 50;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-      padding: 0.65rem 0.85rem calc(0.65rem + env(safe-area-inset-bottom));
-      background: rgba(15, 20, 25, 0.96);
-      border-top: 1px solid var(--border);
-      backdrop-filter: blur(8px);
-    }
-
-    .bottom-nav button {
-      width: 100%;
-      padding: 0.85rem 0.5rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 0.92rem;
-    }
-
-    .bottom-nav button.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-
-    .daily-hero {
-      background: linear-gradient(160deg, #1e3a5f 0%, #1a2332 55%, #15202b 100%);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 1.4rem 1.2rem 1.2rem;
-      margin-bottom: 1rem;
-      text-align: center;
-    }
-
-    .daily-hero .eyebrow {
-      color: var(--muted);
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 0.5rem;
-    }
-
-    .daily-hero .big {
-      font-size: clamp(2rem, 8vw, 2.8rem);
-      font-weight: 800;
-      line-height: 1.1;
-      margin-bottom: 0.35rem;
-    }
-
-    .daily-hero .big.ok { color: var(--green); }
-    .daily-hero .big.warn { color: var(--yellow); }
-    .daily-hero .big.bad { color: var(--red); }
-
-    .daily-hero .sub {
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    .daily-form {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 0.6rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-    }
-
-    .daily-form .row {
-      display: grid;
-      grid-template-columns: 1fr 120px;
-      gap: 0.5rem;
-    }
-
-    .daily-form .row.full {
-      grid-template-columns: 1fr;
-    }
-
-    .daily-form select {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      padding: 0.7rem 0.75rem;
-      font-size: 1rem;
-      font-family: inherit;
-    }
-
-    .daily-form select:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .pay-tag {
-      display: inline-block;
-      margin-top: 0.2rem;
-      padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-      font-size: 0.72rem;
-      background: rgba(59, 130, 246, 0.15);
-      color: var(--accent);
-    }
-
-    .daily-form input {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      padding: 0.7rem 0.75rem;
-      font-size: 1rem;
-      font-family: inherit;
-    }
-
-    .daily-form input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .daily-form button {
-      width: 100%;
-      padding: 0.85rem;
-      font-size: 1rem;
-    }
-
-    .daily-list {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden;
-      margin-bottom: 1rem;
-    }
-
-    .daily-list h3 {
-      padding: 0.85rem 1rem;
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-      background: var(--surface2);
-    }
-
-    .daily-item {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.85rem 1rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .daily-item:last-child { border-bottom: none; }
-
-    .daily-item .meta { flex: 1; min-width: 0; }
-    .daily-item .meta .desc { font-weight: 600; }
-    .daily-item .meta .when { color: var(--muted); font-size: 0.78rem; margin-top: 0.15rem; }
-    .daily-item .val { font-weight: 700; white-space: nowrap; }
-    .daily-item .del {
-      background: transparent;
-      border: none;
-      color: var(--muted);
-      font-size: 1.2rem;
-      padding: 0.2rem 0.4rem;
-    }
-    .daily-item .del:hover { color: var(--red); }
 
     .empty-hint {
       padding: 1.2rem 1rem;
@@ -268,7 +96,7 @@
     }
 
     @media (max-width: 720px) {
-      body { padding: 0.85rem 0.85rem 5.5rem; }
+      body { padding: 0.85rem; }
       header h1 { font-size: 1.25rem; }
       .nav-mes { margin-left: 0; width: 100%; }
       .nav-mes button { flex: 1; }
@@ -873,9 +701,6 @@
     }
 
     body.locked .app-shell,
-    body.locked .bottom-nav {
-      display: none !important;
-    }
   </style>
 </head>
 <body class="locked">
@@ -924,95 +749,21 @@
 
   <div class="container app-shell">
 
-    <!-- ============ TELA DIÁRIA (celular) ============ -->
-    <div id="view-daily">
-      <header>
-        <div>
-          <h1>Hoje</h1>
-          <p id="daily-date-label">Vive agora, paga no próximo mês</p>
-        </div>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-          <button class="save" onclick="saveChanges()">Salvar</button>
-          <button class="secondary" onclick="lockApp()">Sair</button>
-        </div>
-      </header>
-
-      <div class="daily-hero" id="daily-hero"></div>
-      <div class="cards" id="daily-cards"></div>
-
-      <div class="daily-form">
-        <div class="row">
-          <input type="text" id="daily-desc" placeholder="O que gastou?" autocomplete="off">
-          <input type="text" id="daily-valor" class="money-input" inputmode="numeric" placeholder="R$ 0,00">
-        </div>
-        <div class="row full">
-          <select id="daily-forma">
-            <option value="">Como pagou?</option>
-            <option value="pix">PIX</option>
-            <option value="credito_btg">Crédito BTG</option>
-            <option value="credito_nubank">Crédito Nubank</option>
-          </select>
-        </div>
-        <button onclick="addDailyExpense()">+ Lançar gasto do dia</button>
-      </div>
-
-      <div class="daily-list">
-        <h3>Gastos de hoje</h3>
-        <div id="daily-today-list"></div>
-      </div>
-
-      <div class="daily-list">
-        <h3>Histórico do ciclo</h3>
-        <div id="daily-history-list"></div>
-      </div>
-
-      <div class="settings-box">
-        <h3>Quanto posso gastar neste ciclo</h3>
-        <div class="field">
-          <label for="livre-override">Saldo livre manual (opcional)</label>
-          <input type="text" id="livre-override" class="money-input" inputmode="numeric" placeholder="Automático = sobra do mês de pagamento">
-        </div>
-        <p class="settings-hint" id="livre-hint">
-          Ciclo: do 5º dia útil até o 5º dia útil do mês seguinte.
-          Você vive agora e paga no próximo. O limite automático é a sobra do mês de pagamento.
-        </p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 17 · Jul/2026</p>
-        <div class="actions" style="margin-top:0.75rem">
-          <button class="secondary" onclick="applyDailySettings()">Aplicar</button>
-          <button class="secondary" onclick="openNextMonthPlan()">Abrir planilha do mês de pagamento</button>
-          <button class="secondary" onclick="showDetail(getDailyContext().year, getDailyContext().mes)">Abrir este mês</button>
-        </div>
-      </div>
-
-      <div class="settings-box" id="cloud-box">
-        <h3>Nuvem (sync entre aparelhos)</h3>
-        <p class="settings-hint" id="sync-hint">
-          Conta na nuvem: ao entrar com a senha, em qualquer aparelho ou guia, você vê os mesmos dados.
-          Ao Salvar, sobe para a nuvem.
-        </p>
-        <div class="field cloud-setup" id="cloud-setup-fields" style="display:none">
-          <label for="fb-url">URL do Realtime Database (Firebase)</label>
-          <input type="url" id="fb-url" placeholder="https://SEU-PROJETO-default-rtdb.firebaseio.com" autocomplete="off">
-        </div>
-        <div class="actions" style="margin-top:0.75rem">
-          <button class="secondary" onclick="syncNow()">Sincronizar agora</button>
-        </div>
-        <p class="settings-hint" id="sync-status-line" style="margin-top:0.6rem">Status: —</p>
-      </div>
-
-      <div class="save-status" id="save-status-daily">Tudo salvo</div>
-    </div>
-
     <!-- ============ PAINEL PRINCIPAL ============ -->
     <div id="view-dashboard" class="hidden">
       <header>
         <div>
           <h1>Planilha Mensal</h1>
-          <p>Receitas, custos fixos, ativos e dívidas — os gastos do dia entram aqui automaticamente</p>
+          <p>Receitas, despesas fixas, ativos e dívidas</p>
         </div>
-        <div class="year-select">
-          <label for="year">Ano:</label>
-          <select id="year"></select>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+          <div class="year-select">
+            <label for="year">Ano:</label>
+            <select id="year"></select>
+          </div>
+          <button class="save" onclick="saveChanges()">Salvar</button>
+          <button class="secondary" onclick="syncNow()">Sincronizar</button>
+          <button class="secondary" onclick="lockApp()">Sair</button>
         </div>
       </header>
 
@@ -1048,7 +799,24 @@
         <span class="save-status" id="save-status-dashboard">Tudo salvo</span>
       </div>
 
-        <footer>Salvar grava neste aparelho e, se a nuvem estiver conectada, sincroniza automaticamente</footer>
+      <div class="settings-box" id="cloud-box">
+        <h3>Nuvem (sync entre aparelhos)</h3>
+        <p class="settings-hint" id="sync-hint">
+          Conta na nuvem: ao entrar com a senha, em qualquer aparelho, você vê os mesmos dados.
+          Ao Salvar, sobe para a nuvem.
+        </p>
+        <div class="field cloud-setup" id="cloud-setup-fields" style="display:none">
+          <label for="fb-url">URL do Realtime Database (Firebase)</label>
+          <input type="url" id="fb-url" placeholder="https://SEU-PROJETO-default-rtdb.firebaseio.com" autocomplete="off">
+        </div>
+        <div class="actions" style="margin-top:0.75rem">
+          <button class="secondary" onclick="syncNow()">Sincronizar agora</button>
+        </div>
+        <p class="settings-hint" id="sync-status-line" style="margin-top:0.6rem">Status: —</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 18 · Ago/2026</p>
+      </div>
+
+      <footer>Salvar grava neste aparelho e sincroniza na nuvem</footer>
     </div>
 
     <!-- ============ DETALHE DO MÊS ============ -->
@@ -1118,11 +886,6 @@
       </div>
 
       <div class="detail-cards" id="detail-cards"></div>
-
-      <div class="daily-list" style="margin-top:1rem">
-        <h3>Gastos diários deste mês (vêm da tela Hoje)</h3>
-        <div id="detail-daily-list"></div>
-      </div>
     </div>
 
     <div id="copy-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeCopyModal()">
@@ -1145,10 +908,6 @@
     </div>
   </div>
 
-  <nav class="bottom-nav">
-    <button id="nav-daily" class="active" onclick="showDaily()">Hoje</button>
-    <button id="nav-month" onclick="showDashboard()">Planilha</button>
-  </nav>
 
   <script>
     const MESES = [
@@ -1200,10 +959,9 @@
     };
 
     let currentDetail = { year: null, mes: null };
-    let currentView = "daily";
+    let currentView = "month";
     let appData = {};
     let hasUnsavedChanges = false;
-    let dailyValorDigits = "";
     let cryptoKey = null;
     let yearSelectBound = false;
     let syncState = "off"; // off | idle | syncing | ok | error
@@ -1249,10 +1007,7 @@
         receitas: [],
         despesas: [],
         ativos: [],
-        passivos: [],
-        gastosDiarios: [],
-        orcamentoLivre: null,
-        periodoFim: null
+        passivos: []
       };
     }
 
@@ -1262,11 +1017,16 @@
         receitas: m.receitas || [],
         despesas: m.despesas || [],
         ativos: m.ativos || [],
-        passivos: m.passivos || [],
-        gastosDiarios: m.gastosDiarios || [],
-        orcamentoLivre: m.orcamentoLivre ?? null,
-        periodoFim: m.periodoFim || null
+        passivos: m.passivos || []
       };
+    }
+
+    function stripDailyData(data) {
+      const out = data || appData;
+      Object.keys(out).forEach(year => {
+        if (Array.isArray(out[year])) out[year] = out[year].map(normalizeMonth);
+      });
+      return out;
     }
 
     function cloneData(data) {
@@ -1277,9 +1037,8 @@
       const month = normalizeMonth(m);
       return {
         receita: sum(month.receitas),
-        despesas: sum(month.despesas) + sum(month.gastosDiarios),
+        despesas: sum(month.despesas),
         fixos: sum(month.despesas),
-        diarios: sum(month.gastosDiarios),
         ativos: sum(month.ativos),
         passivos: sum(month.passivos)
       };
@@ -1404,6 +1163,7 @@
 
     async function persistEncrypted(options = {}) {
       if (!cryptoKey) throw new Error("Sem chave");
+      stripDailyData(appData);
       const skipCloud = !!options.skipCloud;
       const payload = await encryptJson(appData, cryptoKey);
       // Não avançar updatedAt em gravação local de emergência (senão a web
@@ -1448,7 +1208,7 @@
         const months = data[year] || [];
         return months.some(m => {
           const t = monthTotals(m);
-          return t.receita > 0 || t.fixos > 0 || t.diarios > 0 || t.ativos > 0 || t.passivos > 0;
+          return t.receita > 0 || t.fixos > 0 || t.ativos > 0 || t.passivos > 0;
         });
       });
     }
@@ -1581,7 +1341,7 @@
 
     async function applyRemotePayload(remote) {
       const remoteData = await decryptJson({ iv: remote.iv, data: remote.data }, cryptoKey);
-      appData = remoteData;
+      appData = stripDailyData(remoteData);
       const updatedAt = Number(remote.updatedAt) || Date.now();
       localStorage.setItem(DATA_KEY, JSON.stringify({ iv: remote.iv, data: remote.data }));
       localStorage.setItem(META_KEY, JSON.stringify({ updatedAt }));
@@ -1646,8 +1406,7 @@
         await loadAccountFromCloud();
       }
       updateSaveStatus();
-      if (currentView === "daily") renderDaily();
-      else if (currentView === "detail") renderDetail();
+      if (currentView === "detail") renderDetail();
       else renderDashboard();
       refreshCloudSetupUi();
     }
@@ -1658,8 +1417,7 @@
       if (hasUnsavedChanges) return;
       const result = await syncFromCloud();
       if (result.changed) {
-        if (currentView === "daily") renderDaily();
-        else if (currentView === "detail") renderDetail();
+        if (currentView === "detail") renderDetail();
         else renderDashboard();
       }
     }
@@ -1759,8 +1517,7 @@
         return;
       }
       initYearSelect();
-      if (currentView === "daily") renderDaily();
-      else if (currentView === "detail") renderDetail();
+      if (currentView === "detail") renderDetail();
       else renderDashboard();
       alert("Planilha original restaurada. Clique em Salvar se quiser gravar de novo.");
     }
@@ -1815,9 +1572,8 @@
       document.getElementById("view-lock").classList.add("hidden");
       closeCopyModal();
       initYearSelect();
-      bindDailyInputs();
       refreshCloudSetupUi();
-      showDaily();
+      showDashboard();
     }
 
     function lockApp() {
@@ -1963,391 +1719,11 @@
 
     function setActiveNav(view) {
       currentView = view;
-      document.getElementById("nav-daily").classList.toggle("active", view === "daily");
-      document.getElementById("nav-month").classList.toggle("active", view === "month" || view === "detail");
     }
 
     function hideAllViews() {
-      document.getElementById("view-daily").classList.add("hidden");
       document.getElementById("view-dashboard").classList.add("hidden");
       document.getElementById("view-detail").classList.add("hidden");
-    }
-
-    /* ---------- tela diária ---------- */
-
-    const FORMAS_PAGAMENTO = {
-      pix: "PIX",
-      credito_btg: "Crédito BTG",
-      credito_nubank: "Crédito Nubank"
-    };
-
-    function formaLabel(forma) {
-      return FORMAS_PAGAMENTO[forma] || "";
-    }
-
-    function getDailyContext() {
-      const now = new Date();
-      return { year: now.getFullYear(), mes: now.getMonth(), hoje: todayISO() };
-    }
-
-    function getCurrentMonth() {
-      const { year, mes } = getDailyContext();
-      return { year, mes, month: getYearData(year)[mes] };
-    }
-
-    function getNextMonthRef(year, mes) {
-      if (mes === 11) return { year: year + 1, mes: 0 };
-      return { year, mes: mes + 1 };
-    }
-
-    function dateToISO(d) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${day}`;
-    }
-
-    function isBusinessDay(d) {
-      const day = d.getDay();
-      return day !== 0 && day !== 6;
-    }
-
-    function nthBusinessDay(year, mes, n) {
-      let count = 0;
-      let lastBiz = null;
-      const d = new Date(year, mes, 1);
-      while (d.getMonth() === mes) {
-        if (isBusinessDay(d)) {
-          count++;
-          lastBiz = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-          if (count === n) return lastBiz;
-        }
-        d.setDate(d.getDate() + 1);
-      }
-      return lastBiz || new Date(year, mes, 1);
-    }
-
-    function getBillingCycle(asOfISO) {
-      const asOf = parseISODate(asOfISO);
-      const y = asOf.getFullYear();
-      const m = asOf.getMonth();
-      const fifthThis = nthBusinessDay(y, m, 5);
-      const fifthThisISO = dateToISO(fifthThis);
-
-      if (asOfISO >= fifthThisISO) {
-        const next = getNextMonthRef(y, m);
-        const fifthNext = nthBusinessDay(next.year, next.mes, 5);
-        return {
-          startISO: fifthThisISO,
-          endISO: dateToISO(fifthNext),
-          cycleYear: y,
-          cycleMes: m,
-          payYear: next.year,
-          payMes: next.mes
-        };
-      }
-
-      const prev = getPrevMonthRef(y, m);
-      const fifthPrev = nthBusinessDay(prev.year, prev.mes, 5);
-      return {
-        startISO: dateToISO(fifthPrev),
-        endISO: fifthThisISO,
-        cycleYear: prev.year,
-        cycleMes: prev.mes,
-        payYear: y,
-        payMes: m
-      };
-    }
-
-    function collectGastosInRange(startISO, endISO) {
-      const start = parseISODate(startISO);
-      const end = parseISODate(endISO);
-      const items = [];
-      const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
-      while (cursor <= end) {
-        const year = cursor.getFullYear();
-        const mes = cursor.getMonth();
-        const month = normalizeMonth(getYearData(year)[mes]);
-        (month.gastosDiarios || []).forEach(g => {
-          if (g.data >= startISO && g.data <= endISO) items.push(g);
-        });
-        cursor.setMonth(cursor.getMonth() + 1);
-      }
-      return items;
-    }
-
-    function calcPayMonthSaldo(payYear, payMes) {
-      const payMonth = normalizeMonth(getYearData(payYear)[payMes]);
-      const t = monthTotals(payMonth);
-      return {
-        year: payYear,
-        mes: payMes,
-        receita: t.receita,
-        fixos: t.fixos,
-        saldo: t.receita - t.fixos,
-        hasData: t.receita > 0 || t.fixos > 0
-      };
-    }
-
-    function calcDailyBudget(year, mes, asOfISO) {
-      const cycle = getBillingCycle(asOfISO);
-      const cycleMonth = normalizeMonth(getYearData(cycle.cycleYear)[cycle.cycleMes]);
-      const pay = calcPayMonthSaldo(cycle.payYear, cycle.payMes);
-      const manual = cycleMonth.orcamentoLivre != null;
-      const livreBase = manual
-        ? Number(cycleMonth.orcamentoLivre)
-        : Math.max(0, pay.saldo);
-
-      const gastos = collectGastosInRange(cycle.startISO, cycle.endISO);
-      const gastoAntes = gastos
-        .filter(g => g.data < asOfISO)
-        .reduce((s, g) => s + (g.valor || 0), 0);
-      const gastoHoje = gastos
-        .filter(g => g.data === asOfISO)
-        .reduce((s, g) => s + (g.valor || 0), 0);
-      const gastoAteAgora = gastoAntes + gastoHoje;
-
-      const restanteAntes = livreBase - gastoAntes;
-      const restante = livreBase - gastoAteAgora;
-
-      const asOf = parseISODate(asOfISO);
-      const fim = parseISODate(cycle.endISO);
-      const msDay = 24 * 60 * 60 * 1000;
-      let diasRestantes = Math.floor((fim - asOf) / msDay) + 1;
-      if (diasRestantes < 1) diasRestantes = 1;
-
-      const porDia = restanteAntes / diasRestantes;
-      const aindaHoje = porDia - gastoHoje;
-
-      return {
-        livreBase,
-        gastoAteAgora,
-        gastoHoje,
-        restante,
-        restanteAntes,
-        diasRestantes,
-        porDia,
-        aindaHoje,
-        inicioISO: cycle.startISO,
-        fimISO: cycle.endISO,
-        manual,
-        cycleNome: `${MESES_LONGO[cycle.cycleMes]}/${cycle.cycleYear}`,
-        nextNome: `${MESES_LONGO[pay.mes]}/${pay.year}`,
-        nextReceita: pay.receita,
-        nextFixos: pay.fixos,
-        nextSaldo: pay.saldo,
-        nextHasData: pay.hasData,
-        nextYear: pay.year,
-        nextMes: pay.mes,
-        cycleYear: cycle.cycleYear,
-        cycleMes: cycle.cycleMes
-      };
-    }
-
-    function openNextMonthPlan() {
-      const { hoje } = getDailyContext();
-      const budget = calcDailyBudget(0, 0, hoje);
-      showDetail(budget.nextYear, budget.nextMes);
-    }
-
-    function showDaily() {
-      hideAllViews();
-      document.getElementById("view-daily").classList.remove("hidden");
-      setActiveNav("daily");
-      renderDaily();
-    }
-
-    function renderDaily() {
-      const { year, mes, hoje } = getDailyContext();
-      const budget = calcDailyBudget(year, mes, hoje);
-      const cycleMonth = getYearData(budget.cycleYear)[budget.cycleMes];
-
-      document.getElementById("daily-date-label").textContent =
-        `Ciclo ${formatDateBR(budget.inicioISO)} → ${formatDateBR(budget.fimISO)} · ${formatDateBR(hoje)}`;
-
-      let tone = "ok";
-      if (budget.aindaHoje < 0) tone = "bad";
-      else if (budget.gastoHoje > budget.porDia) tone = "warn";
-
-      document.getElementById("daily-hero").innerHTML = `
-        <div class="eyebrow">Ainda pode gastar hoje</div>
-        <div class="big ${tone}">${formatMoney(budget.aindaHoje)}</div>
-        <div class="sub">Meta do dia ${formatMoney(budget.porDia)} · ${budget.diasRestantes} dia(s) · sobra ${formatMoney(budget.restante)}</div>
-      `;
-
-      document.getElementById("daily-cards").innerHTML = `
-        <div class="card">
-          <label>Limite do ciclo</label>
-          <div class="value positive">${formatMoney(budget.livreBase)}</div>
-        </div>
-        <div class="card">
-          <label>Já gastou (a pagar)</label>
-          <div class="value negative">${formatMoney(budget.gastoAteAgora)}</div>
-        </div>
-        <div class="card">
-          <label>Gasto hoje</label>
-          <div class="value ${budget.gastoHoje > 0 ? "negative" : ""}">${formatMoney(budget.gastoHoje)}</div>
-        </div>
-        <div class="card">
-          <label>Meta / dia agora</label>
-          <div class="value">${formatMoney(budget.porDia)}</div>
-        </div>
-        <div class="card">
-          <label>Sobra de ${budget.nextNome}</label>
-          <div class="value ${budget.nextSaldo >= 0 ? "positive" : "negative"}">${formatMoney(budget.nextSaldo)}</div>
-        </div>
-        <div class="card">
-          <label>5º dia útil → 5º dia útil</label>
-          <div class="value" style="font-size:1rem">${formatDateBR(budget.inicioISO)} → ${formatDateBR(budget.fimISO)}</div>
-        </div>
-      `;
-
-      const livreInput = document.getElementById("livre-override");
-      if (document.activeElement !== livreInput) {
-        livreInput.value = cycleMonth.orcamentoLivre != null ? formatMoney(cycleMonth.orcamentoLivre) : "";
-      }
-
-      if (cycleMonth.orcamentoLivre != null) {
-        document.getElementById("livre-hint").textContent =
-          `Usando valor manual. A sobra automática de ${budget.nextNome} seria ${formatMoney(budget.nextSaldo)} (Receita ${formatMoney(budget.nextReceita)} − Fixos ${formatMoney(budget.nextFixos)}). Ciclo: ${formatDateBR(budget.inicioISO)} até ${formatDateBR(budget.fimISO)}.`;
-      } else if (!budget.nextHasData) {
-        document.getElementById("livre-hint").textContent =
-          `A planilha de ${budget.nextNome} ainda está vazia. Preencha receita e fixos do mês de pagamento (ou informe o saldo livre manual). Ciclo atual: ${formatDateBR(budget.inicioISO)} → ${formatDateBR(budget.fimISO)}.`;
-      } else {
-        document.getElementById("livre-hint").textContent =
-          `Ciclo ${formatDateBR(budget.inicioISO)} → ${formatDateBR(budget.fimISO)}. Limite = sobra de ${budget.nextNome}: ${formatMoney(budget.nextReceita)} − ${formatMoney(budget.nextFixos)} = ${formatMoney(budget.nextSaldo)}.`;
-      }
-
-      const todayItems = collectGastosInRange(hoje, hoje).slice().reverse();
-      const todayList = document.getElementById("daily-today-list");
-      if (!todayItems.length) {
-        todayList.innerHTML = `<div class="empty-hint">Nenhum gasto lançado hoje</div>`;
-      } else {
-        todayList.innerHTML = todayItems.map(g => `
-          <div class="daily-item">
-            <div class="meta">
-              <div class="desc">${escapeHtml(g.desc || "Gasto")}</div>
-              <div class="when">${formatDateBR(g.data)}${g.forma ? ` · <span class="pay-tag">${escapeHtml(formaLabel(g.forma))}</span>` : ""}</div>
-            </div>
-            <div class="val">${formatMoney(g.valor)}</div>
-            <button class="del" onclick="removeDailyExpense('${g.id}')">&times;</button>
-          </div>
-        `).join("");
-      }
-
-      const cycleGastos = collectGastosInRange(budget.inicioISO, budget.fimISO);
-      const byDay = {};
-      cycleGastos.forEach(g => {
-        byDay[g.data] = (byDay[g.data] || 0) + (g.valor || 0);
-      });
-      const days = Object.keys(byDay).sort().reverse();
-      const hist = document.getElementById("daily-history-list");
-      if (!days.length) {
-        hist.innerHTML = `<div class="empty-hint">Ainda sem histórico neste ciclo</div>`;
-      } else {
-        hist.innerHTML = days.map(d => {
-          const formas = [...new Set(cycleGastos.filter(g => g.data === d && g.forma).map(g => formaLabel(g.forma)))].join(", ");
-          return `
-          <div class="daily-item">
-            <div class="meta">
-              <div class="desc">${formatDateBR(d)}${d === hoje ? " · hoje" : ""}</div>
-              <div class="when">${cycleGastos.filter(g => g.data === d).length} lançamento(s)${formas ? ` · ${escapeHtml(formas)}` : ""}</div>
-            </div>
-            <div class="val">${formatMoney(byDay[d])}</div>
-          </div>
-        `;
-        }).join("");
-      }
-
-      updateSaveStatus();
-    }
-
-    function addDailyExpense() {
-      const desc = document.getElementById("daily-desc").value.trim() || "Gasto do dia";
-      const forma = document.getElementById("daily-forma").value;
-      const valor = digitsToMoney(dailyValorDigits);
-      if (!valor) {
-        alert("Informe um valor.");
-        return;
-      }
-      if (!forma) {
-        alert("Selecione como pagou: PIX, Crédito BTG ou Crédito Nubank.");
-        return;
-      }
-
-      const { year, mes, hoje } = getDailyContext();
-      const months = getYearData(year);
-      months[mes].gastosDiarios = months[mes].gastosDiarios || [];
-      months[mes].gastosDiarios.push({ id: uid(), data: hoje, desc, valor, forma });
-      setYearData(year, months);
-
-      document.getElementById("daily-desc").value = "";
-      document.getElementById("daily-valor").value = "";
-      document.getElementById("daily-forma").value = "";
-      dailyValorDigits = "";
-      renderDaily();
-    }
-
-    function removeDailyExpense(id) {
-      const { year } = getDailyContext();
-      // procura no mês atual e no anterior (ciclo pode atravessar virada)
-      for (const y of [year, year - 1]) {
-        const months = getYearData(y);
-        for (let i = 0; i < 12; i++) {
-          const list = months[i].gastosDiarios || [];
-          const next = list.filter(g => g.id !== id);
-          if (next.length !== list.length) {
-            months[i].gastosDiarios = next;
-            setYearData(y, months);
-            renderDaily();
-            return;
-          }
-        }
-      }
-      renderDaily();
-    }
-
-    function applyDailySettings() {
-      const { hoje } = getDailyContext();
-      const budget = calcDailyBudget(0, 0, hoje);
-      const months = getYearData(budget.cycleYear);
-      const raw = document.getElementById("livre-override").value.trim();
-
-      if (!raw) {
-        months[budget.cycleMes].orcamentoLivre = null;
-      } else {
-        const digits = raw.replace(/\D/g, "");
-        months[budget.cycleMes].orcamentoLivre = digitsToMoney(digits);
-      }
-      setYearData(budget.cycleYear, months);
-      renderDaily();
-    }
-
-    function bindDailyInputs() {
-      if (bindDailyInputs.done) return;
-      bindDailyInputs.done = true;
-      const valorInput = document.getElementById("daily-valor");
-      valorInput.addEventListener("focus", () => valorInput.select());
-      valorInput.addEventListener("input", () => {
-        dailyValorDigits = valorInput.value.replace(/\D/g, "");
-        const val = digitsToMoney(dailyValorDigits);
-        valorInput.value = val ? formatMoney(val) : "";
-      });
-
-      const livreInput = document.getElementById("livre-override");
-      livreInput.addEventListener("focus", () => livreInput.select());
-      livreInput.addEventListener("input", () => {
-        const digits = livreInput.value.replace(/\D/g, "");
-        const val = digitsToMoney(digits);
-        livreInput.value = val ? formatMoney(val) : "";
-      });
-
-      document.getElementById("daily-desc").addEventListener("keydown", e => {
-        if (e.key === "Enter") addDailyExpense();
-      });
-      valorInput.addEventListener("keydown", e => {
-        if (e.key === "Enter") addDailyExpense();
-      });
     }
 
     async function saveChanges() {
@@ -2377,8 +1753,7 @@
       if (hasUnsavedChanges && !confirm("Descartar alterações não salvas?")) return;
       await loadDraftFromStorage();
       initYearSelect();
-      if (currentView === "daily") renderDaily();
-      else if (currentView === "detail") renderDetail();
+      if (currentView === "detail") renderDetail();
       else renderDashboard();
     }
 
@@ -2591,7 +1966,6 @@
       const t = monthTotals(months[mes]);
       const saldo = t.receita - t.despesas;
       const gastoPct = calcPctGasto(t.receita, t.despesas);
-      const divPct = calcDivBrPatrim(t.ativos, t.passivos);
       const patrimonio = t.ativos - t.passivos;
 
       document.getElementById("detail-cards").innerHTML = `
@@ -2600,8 +1974,8 @@
           <div class="value ${saldo >= 0 ? "positive" : "negative"}">${formatMoney(saldo)}</div>
         </div>
         <div class="card">
-          <label>Fixos + Diários</label>
-          <div class="value negative">${formatMoney(t.fixos)} + ${formatMoney(t.diarios)}</div>
+          <label>Despesas fixas</label>
+          <div class="value negative">${formatMoney(t.fixos)}</div>
         </div>
         <div class="card">
           <label>% Gasto</label>
@@ -2612,24 +1986,7 @@
           <div class="value ${patrimonio >= 0 ? "positive" : "negative"}">${formatMoney(patrimonio)}</div>
         </div>
       `;
-
-      const diarios = (months[mes].gastosDiarios || []).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.id || "").localeCompare(a.id || ""));
-      const list = document.getElementById("detail-daily-list");
-      if (!diarios.length) {
-        list.innerHTML = `<div class="empty-hint">Nenhum gasto diário neste mês</div>`;
-      } else {
-        list.innerHTML = diarios.map(g => `
-          <div class="daily-item">
-            <div class="meta">
-              <div class="desc">${escapeHtml(g.desc || "Gasto")}</div>
-              <div class="when">${formatDateBR(g.data)}${g.forma ? ` · <span class="pay-tag">${escapeHtml(formaLabel(g.forma))}</span>` : ""}</div>
-            </div>
-            <div class="val">${formatMoney(g.valor)}</div>
-          </div>
-        `).join("");
-      }
     }
-
     function escapeHtml(str) {
       return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
@@ -2842,8 +2199,7 @@
             appData = data;
             markDirty();
             initYearSelect();
-            if (currentView === "daily") renderDaily();
-            else if (currentView === "detail") renderDetail();
+            if (currentView === "detail") renderDetail();
             else renderDashboard();
             alert("Dados importados. Clique em Salvar alterações para gravar.");
           } catch {
