@@ -2232,17 +2232,20 @@
       pullCloudIfVisible();
     }, 30 * 1000);
 
+    const APP_VERSION = 18;
+
     if ("serviceWorker" in navigator) {
       let refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (refreshing) return;
         refreshing = true;
-        // Sempre grava a planilha antes do reload da atualização
         Promise.resolve(persistBeforeUnload()).finally(() => location.reload());
       });
-      navigator.serviceWorker.register("./sw.js").then((reg) => {
+      // Query na URL força o browser a buscar o SW novo (não fica preso no antigo)
+      navigator.serviceWorker.register("./sw.js?v=" + APP_VERSION).then((reg) => {
         reg.update().catch(() => {});
-        setInterval(() => reg.update().catch(() => {}), 60 * 1000);
+        if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+        setInterval(() => reg.update().catch(() => {}), 30 * 1000);
       }).catch(() => {});
     }
 
