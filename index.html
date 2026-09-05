@@ -813,7 +813,7 @@
           <button class="secondary" onclick="syncNow()">Sincronizar agora</button>
         </div>
         <p class="settings-hint" id="sync-status-line" style="margin-top:0.6rem">Status: —</p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 18 · Ago/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 19 · Set/2026</p>
       </div>
 
       <footer>Salvar grava neste aparelho e sincroniza na nuvem</footer>
@@ -1185,8 +1185,9 @@
       localStorage.removeItem("orcamento_mensal_version");
       if (!skipCloud) {
         const ok = await pushToCloud({ ...payload, updatedAt });
-        if (!ok) throw new Error("Falha ao sincronizar com a nuvem");
+        return { local: true, cloud: ok };
       }
+      return { local: true, cloud: null };
     }
 
     /** Grava rascunho antes de reload/update para não perder edições. */
@@ -1302,6 +1303,8 @@
       syncNow();
     }
 
+    let lastCloudError = "";
+
     async function pushToCloud(payloadWithMeta) {
       if (!isCloudConfigured()) {
         setSyncState("off");
@@ -1309,6 +1312,7 @@
       }
       const endpoint = cloudEndpoint();
       setSyncState("syncing");
+      lastCloudError = "";
       try {
         const res = await fetch(endpoint, {
           method: "PUT",
@@ -1319,12 +1323,22 @@
             updatedAt: payloadWithMeta.updatedAt
           })
         });
-        if (!res.ok) throw new Error("HTTP " + res.status);
+        if (!res.ok) {
+          let detail = "HTTP " + res.status;
+          try {
+            const errBody = await res.json();
+            if (errBody && errBody.error) detail = String(errBody.error);
+          } catch {}
+          lastCloudError = detail;
+          throw new Error(detail);
+        }
         setSyncState("ok");
         return true;
       } catch (err) {
         console.error(err);
-        setSyncState("error", "não subiu");
+        if (!lastCloudError) lastCloudError = (err && err.message) || "sem rede";
+        const denied = /permission|401|403/i.test(lastCloudError);
+        setSyncState("error", denied ? "Firebase bloqueado" : "não subiu");
         return false;
       }
     }
@@ -1732,20 +1746,29 @@
         return;
       }
       try {
-        await persistEncrypted();
+        const result = await persistEncrypted();
         hasUnsavedChanges = false;
         updateSaveStatus();
-        if (isCloudConfigured() && syncState === "ok") {
+        if (result.cloud === true) {
           alert("Alterações salvas neste aparelho e sincronizadas na nuvem.");
-        } else if (isCloudConfigured()) {
-          alert("Salvo neste aparelho, mas a nuvem falhou. Toque em Sincronizar agora.");
+        } else if (result.cloud === false) {
+          if (/permission|401|403/i.test(lastCloudError)) {
+            alert(
+              "Salvo neste aparelho, mas a NUVEM está bloqueada no Firebase (Permission denied).\n\n" +
+              "Abra o Firebase Console → Realtime Database → Rules e publique:\n\n" +
+              '{\n  "rules": {\n    ".read": true,\n    ".write": true\n  }\n}\n\n' +
+              "O modo teste costuma expirar em 30 dias — não é falta de internet."
+            );
+          } else {
+            alert("Salvo neste aparelho, mas a nuvem falhou (" + (lastCloudError || "erro") + "). Tente Sincronizar agora.");
+          }
         } else {
           alert("Alterações salvas neste aparelho.");
         }
       } catch (err) {
         console.error(err);
         updateSaveStatus();
-        alert("Não foi possível salvar/sincronizar. Verifique a internet e tente de novo.");
+        alert("Não foi possível salvar neste aparelho. Tente novamente.");
       }
     }
 
@@ -2232,7 +2255,7 @@
       pullCloudIfVisible();
     }, 30 * 1000);
 
-    const APP_VERSION = 18;
+    const APP_VERSION = 19;
 
     if ("serviceWorker" in navigator) {
       let refreshing = false;
