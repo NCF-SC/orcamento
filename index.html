@@ -760,6 +760,7 @@
           <div class="year-select">
             <label for="year">Ano:</label>
             <select id="year"></select>
+            <button class="secondary" type="button" onclick="addYear()" title="Adicionar ano">+ Ano</button>
           </div>
           <button class="save" onclick="saveChanges()">Salvar</button>
           <button class="secondary" onclick="syncNow()">Sincronizar</button>
@@ -803,7 +804,7 @@
         <h3>Nuvem (sync entre aparelhos)</h3>
         <p class="settings-hint" id="sync-hint">
           Conta na nuvem: ao entrar com a senha, em qualquer aparelho, você vê os mesmos dados.
-          Ao Salvar, sobe para a nuvem.
+          Ao Salvar, sobe para a nuvem. Os valores vão criptografados — sem a senha do app não dá para ler a planilha.
         </p>
         <div class="field cloud-setup" id="cloud-setup-fields" style="display:none">
           <label for="fb-url">URL do Realtime Database (Firebase)</label>
@@ -813,7 +814,7 @@
           <button class="secondary" onclick="syncNow()">Sincronizar agora</button>
         </div>
         <p class="settings-hint" id="sync-status-line" style="margin-top:0.6rem">Status: —</p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 20 · Set/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 21 · Set/2026</p>
       </div>
 
       <footer>Salvar grava neste aparelho e sincroniza na nuvem</footer>
@@ -1784,25 +1785,50 @@
 
     /* ---------- painel principal ---------- */
 
-    function initYearSelect() {
+    function initYearSelect(selectedYear) {
       const select = document.getElementById("year");
+      const prev = selectedYear != null ? Number(selectedYear) : Number(select.value) || new Date().getFullYear();
       select.innerHTML = "";
       const currentYear = new Date().getFullYear();
       const years = new Set([currentYear, currentYear - 1, currentYear + 1]);
       Object.keys(appData).forEach(y => years.add(Number(y)));
 
-      [...years].sort((a, b) => b - a).forEach(y => {
+      const list = [...years].filter(y => y >= 2000 && y <= 2100).sort((a, b) => b - a);
+      list.forEach(y => {
         const opt = document.createElement("option");
         opt.value = y;
         opt.textContent = y;
-        if (y === currentYear) opt.selected = true;
+        if (y === prev) opt.selected = true;
         select.appendChild(opt);
       });
+      if (!select.value && list.length) select.value = String(list[0]);
 
       if (!yearSelectBound) {
         select.addEventListener("change", renderDashboard);
         yearSelectBound = true;
       }
+    }
+
+    function addYear() {
+      const existing = Object.keys(appData).map(Number).filter(y => y >= 2000 && y <= 2100);
+      const now = new Date().getFullYear();
+      const suggestion = existing.length ? Math.max(...existing, now) + 1 : now + 1;
+      const raw = prompt("Qual ano adicionar?", String(suggestion));
+      if (raw == null) return;
+      const year = Number(String(raw).replace(/\D/g, ""));
+      if (!year || year < 2000 || year > 2100) {
+        alert("Informe um ano válido (ex.: 2027).");
+        return;
+      }
+      if (appData[year] && Array.isArray(appData[year]) && appData[year].some(m => {
+        const t = monthTotals(m);
+        return t.receita || t.fixos || t.ativos || t.passivos;
+      })) {
+        if (!confirm(`O ano ${year} já tem dados. Abrir mesmo assim?`)) return;
+      }
+      getYearData(year);
+      initYearSelect(year);
+      renderDashboard();
     }
 
     function renderSummary(months) {
@@ -2257,7 +2283,7 @@
       pullCloudIfVisible();
     }, 30 * 1000);
 
-    const APP_VERSION = 20;
+    const APP_VERSION = 21;
 
     if ("serviceWorker" in navigator) {
       let refreshing = false;

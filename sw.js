@@ -1,4 +1,4 @@
-const CACHE = "orcamento-v20";
+const CACHE = "orcamento-v21";
 const ASSETS = ["./manifest.json", "./icon.svg", "./restore-pack.json", "./firebase-config.js"];
 
 self.addEventListener("message", (event) => {
