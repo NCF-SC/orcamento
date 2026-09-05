@@ -1408,11 +1408,13 @@
         return;
       }
       if (hasUnsavedChanges) {
-        try {
-          await persistEncrypted();
-          hasUnsavedChanges = false;
-        } catch (err) {
-          alert("Não foi possível salvar/subir. Verifique a internet e tente de novo.");
+        const result = await persistEncrypted();
+        hasUnsavedChanges = false;
+        if (result.cloud === false && /permission|401|403/i.test(lastCloudError)) {
+          alert(
+            "Salvo neste aparelho, mas a NUVEM está bloqueada no Firebase.\n\n" +
+            "Realtime Database → Rules → publique leitura/escrita liberadas (o modo teste expirou)."
+          );
           updateSaveStatus();
           return;
         }
