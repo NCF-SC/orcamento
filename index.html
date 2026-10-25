@@ -707,21 +707,19 @@
   <div id="view-lock" class="lock-screen">
     <div class="lock-card">
       <h1 id="lock-title">Desbloquear</h1>
-      <p id="lock-desc">Digite os 6 números — entra sozinho no celular e no computador.</p>
+      <p id="lock-desc">Digite a senha para abrir o orçamento.</p>
       <div id="lock-login">
-        <label for="lock-pass">Senha (só números)</label>
+        <label for="lock-pass" id="lock-pass-label">Senha</label>
         <div class="pin-wrap">
           <input
-            type="tel"
+            type="text"
             id="lock-pass"
             class="masked"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            autocomplete="off"
+            inputmode="text"
+            autocomplete="current-password"
             enterkeyhint="done"
-            maxlength="6"
-            placeholder="000000"
-            aria-label="Senha numérica"
+            placeholder="Sua senha"
+            aria-label="Senha"
             autocapitalize="off"
             autocorrect="off"
             spellcheck="false"
@@ -804,7 +802,7 @@
         <h3>Nuvem (sync entre aparelhos)</h3>
         <p class="settings-hint" id="sync-hint">
           Conta na nuvem: ao entrar com a senha, em qualquer aparelho, você vê os mesmos dados.
-          Ao Salvar, sobe para a nuvem. Os valores vão criptografados — sem a senha do app não dá para ler a planilha.
+          Ao Salvar, sobe criptografado. Use senha forte (mín. 10 caracteres, letra + número).
         </p>
         <div class="field cloud-setup" id="cloud-setup-fields" style="display:none">
           <label for="fb-url">URL do Realtime Database (Firebase)</label>
@@ -812,9 +810,10 @@
         </div>
         <div class="actions" style="margin-top:0.75rem">
           <button class="secondary" onclick="syncNow()">Sincronizar agora</button>
+          <button class="secondary" onclick="openChangePassword()">Alterar senha</button>
         </div>
         <p class="settings-hint" id="sync-status-line" style="margin-top:0.6rem">Status: —</p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 21 · Set/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 22 · Out/2026</p>
       </div>
 
       <footer>Salvar grava neste aparelho e sincroniza na nuvem</footer>
@@ -907,8 +906,33 @@
         </div>
       </div>
     </div>
+    <div id="pw-modal" class="modal-overlay hidden" onclick="if(event.target===this) closePasswordModal()">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="pw-modal-title">Definir senha forte</h3>
+          <button class="secondary" onclick="closePasswordModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;" id="pw-modal-desc">
+            Mínimo 10 caracteres, com letra e número. Essa senha protege a planilha em todos os aparelhos.
+          </p>
+          <div class="field" style="margin-bottom:0.75rem">
+            <label for="pw-new">Nova senha</label>
+            <input type="password" id="pw-new" autocomplete="new-password" style="width:100%;padding:0.65rem;margin-top:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit">
+          </div>
+          <div class="field">
+            <label for="pw-confirm">Confirmar senha</label>
+            <input type="password" id="pw-confirm" autocomplete="new-password" style="width:100%;padding:0.65rem;margin-top:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit">
+          </div>
+          <div class="lock-error" id="pw-error" style="margin-top:0.75rem"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary" id="pw-cancel" onclick="closePasswordModal()">Cancelar</button>
+          <button class="save" onclick="submitNewPassword()">Salvar senha</button>
+        </div>
+      </div>
+    </div>
   </div>
-
 
   <script>
     const MESES = [
@@ -948,15 +972,18 @@
     const AUTH_KEY = "orcamento_auth_v1";
     const DATA_KEY = "orcamento_data_enc_v1";
     const META_KEY = "orcamento_sync_meta_v1";
+    const AUTH_META_KEY = "orcamento_auth_meta_v2";
     const FB_CFG_KEY = "orcamento_firebase_cfg_v1";
     const SESSION_FLAG = "orcamento_unlocked_v1";
     const SESSION_PIN = "orcamento_session_pin_v1";
+    const CLOUD_UID = "main";
 
-    // Senha fixa do dono (hash). Quem tem o link precisa digitar a senha correta.
-    const APP_GATE = {
+    // Auth legado (PIN 6 dígitos) — só para migrar para senha forte
+    const LEGACY_GATE = {
       salt: "XplPIQgJPui2g3A+Nt5DKg==",
       hash: "Omhmoe02+lFVrrxjzhzwgbMjAA091aW5aM4dqTZ3Oe8=",
-      iterations: 250000
+      iterations: 250000,
+      v: 1
     };
 
     let currentDetail = { year: null, mes: null };
@@ -965,8 +992,12 @@
     let hasUnsavedChanges = false;
     let cryptoKey = null;
     let yearSelectBound = false;
-    let syncState = "off"; // off | idle | syncing | ok | error
+    let syncState = "off";
     let syncDetail = "";
+    let currentAuthGate = null; // { salt, hash, iterations, v }
+    let sessionPassword = "";
+    let passwordModalMode = "migrate"; // migrate | change
+    let forcePasswordMigrate = false;
 
     /* ---------- util ---------- */
 
@@ -1094,7 +1125,7 @@
       return diff === 0;
     }
 
-    async function deriveKey(password, saltBytes) {
+    async function deriveKey(password, saltBytes, iterations) {
       const enc = new TextEncoder();
       const baseKey = await crypto.subtle.importKey(
         "raw",
@@ -1104,7 +1135,7 @@
         ["deriveKey"]
       );
       return crypto.subtle.deriveKey(
-        { name: "PBKDF2", salt: saltBytes, iterations: APP_GATE.iterations, hash: "SHA-256" },
+        { name: "PBKDF2", salt: saltBytes, iterations: iterations || 250000, hash: "SHA-256" },
         baseKey,
         { name: "AES-GCM", length: 256 },
         false,
@@ -1112,7 +1143,7 @@
       );
     }
 
-    async function pinHashB64(pin, saltBytes) {
+    async function pinHashB64(pin, saltBytes, iterations) {
       const enc = new TextEncoder();
       const baseKey = await crypto.subtle.importKey(
         "raw",
@@ -1122,11 +1153,43 @@
         ["deriveBits"]
       );
       const bits = await crypto.subtle.deriveBits(
-        { name: "PBKDF2", salt: saltBytes, iterations: APP_GATE.iterations, hash: "SHA-256" },
+        { name: "PBKDF2", salt: saltBytes, iterations: iterations || 250000, hash: "SHA-256" },
         baseKey,
         256
       );
       return bufToB64(bits);
+    }
+
+    function isStrongPassword(pw) {
+      return typeof pw === "string" && pw.length >= 10 && /[A-Za-z]/.test(pw) && /\d/.test(pw);
+    }
+
+    function getStoredAuthMeta() {
+      try {
+        const raw = localStorage.getItem(AUTH_META_KEY);
+        if (!raw) return null;
+        const m = JSON.parse(raw);
+        if (m && m.salt && m.hash && m.iterations) return m;
+      } catch {}
+      return null;
+    }
+
+    function saveAuthMeta(meta) {
+      currentAuthGate = meta;
+      localStorage.setItem(AUTH_META_KEY, JSON.stringify(meta));
+    }
+
+    function legacyCloudUserId() {
+      return LEGACY_GATE.hash.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+
+    function authPayloadFromGate(gate) {
+      return {
+        salt: gate.salt,
+        hash: gate.hash,
+        iterations: gate.iterations,
+        v: gate.v || 2
+      };
     }
 
     async function encryptJson(obj, key) {
@@ -1148,9 +1211,12 @@
     }
 
     function renderLockScreen() {
+      const strong = !!(currentAuthGate && currentAuthGate.v >= 2);
       document.getElementById("lock-title").textContent = "Desbloquear";
-      document.getElementById("lock-desc").textContent =
-        "Digite os 6 números — entra sozinho no celular e no computador.";
+      document.getElementById("lock-desc").textContent = strong
+        ? "Digite sua senha forte para abrir o orçamento."
+        : "Digite a senha atual. Se ainda for a de 6 números, depois pediremos uma senha forte.";
+      document.getElementById("lock-pass-label").textContent = "Senha";
       document.getElementById("lock-submit").textContent = "Entrar";
       showLockError("");
       document.body.classList.add("locked");
@@ -1158,6 +1224,10 @@
       const el = document.getElementById("lock-pass");
       if (el) {
         el.value = "";
+        el.removeAttribute("maxlength");
+        el.setAttribute("type", "text");
+        el.setAttribute("inputmode", strong ? "text" : "numeric");
+        el.classList.add("masked");
         setTimeout(() => el.focus(), 50);
       }
     }
@@ -1179,13 +1249,18 @@
       }
       localStorage.setItem(DATA_KEY, JSON.stringify(payload));
       localStorage.setItem(META_KEY, JSON.stringify({ updatedAt }));
+      if (currentAuthGate) saveAuthMeta(currentAuthGate);
       localStorage.removeItem(LEGACY_STORAGE_KEY);
       localStorage.removeItem(LEGACY_STORAGE_KEY + "_seed_version");
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem("orcamento_mensal");
       localStorage.removeItem("orcamento_mensal_version");
       if (!skipCloud) {
-        const ok = await pushToCloud({ ...payload, updatedAt });
+        const ok = await pushToCloud({
+          ...payload,
+          updatedAt,
+          auth: currentAuthGate ? authPayloadFromGate(currentAuthGate) : null
+        });
         return { local: true, cloud: ok };
       }
       return { local: true, cloud: null };
@@ -1237,14 +1312,14 @@
     }
 
     function cloudUserId() {
-      return APP_GATE.hash.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      return CLOUD_UID;
     }
 
-    function cloudEndpoint() {
+    function cloudEndpoint(uid) {
       const cfg = getFirebaseConfig();
       if (!cfg) return null;
       const base = String(cfg.databaseURL).replace(/\/+$/, "");
-      return `${base}/orcamento/${cloudUserId()}.json`;
+      return `${base}/orcamento/${uid || cloudUserId()}.json`;
     }
 
     function getLocalUpdatedAt() {
@@ -1321,7 +1396,8 @@
           body: JSON.stringify({
             iv: payloadWithMeta.iv,
             data: payloadWithMeta.data,
-            updatedAt: payloadWithMeta.updatedAt
+            updatedAt: payloadWithMeta.updatedAt,
+            auth: payloadWithMeta.auth || (currentAuthGate ? authPayloadFromGate(currentAuthGate) : null)
           })
         });
         if (!res.ok) {
@@ -1344,14 +1420,47 @@
       }
     }
 
-    async function fetchCloudPayload() {
+    async function fetchCloudPayloadFrom(uid) {
       if (!isCloudConfigured()) return null;
-      const endpoint = cloudEndpoint();
+      const endpoint = cloudEndpoint(uid);
       const res = await fetch(endpoint, { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const json = await res.json();
       if (!json || !json.iv || !json.data) return null;
       return json;
+    }
+
+    async function fetchCloudPayload() {
+      // Path novo primeiro; se vazio, tenta o path legado (hash do PIN antigo)
+      try {
+        const main = await fetchCloudPayloadFrom(CLOUD_UID);
+        if (main) return main;
+      } catch (err) {
+        console.error(err);
+      }
+      try {
+        return await fetchCloudPayloadFrom(legacyCloudUserId());
+      } catch (err) {
+        console.error(err);
+        return null;
+      }
+    }
+
+    async function resolveAuthGate() {
+      const local = getStoredAuthMeta();
+      if (local && local.v >= 2) {
+        currentAuthGate = local;
+        return local;
+      }
+      try {
+        const remote = await fetchCloudPayload();
+        if (remote && remote.auth && remote.auth.v >= 2) {
+          saveAuthMeta(remote.auth);
+          return remote.auth;
+        }
+      } catch {}
+      currentAuthGate = { ...LEGACY_GATE };
+      return currentAuthGate;
     }
 
     async function applyRemotePayload(remote) {
@@ -1360,6 +1469,7 @@
       const updatedAt = Number(remote.updatedAt) || Date.now();
       localStorage.setItem(DATA_KEY, JSON.stringify({ iv: remote.iv, data: remote.data }));
       localStorage.setItem(META_KEY, JSON.stringify({ updatedAt }));
+      if (remote.auth && remote.auth.v >= 2) saveAuthMeta(remote.auth);
       setSyncState("ok");
       return true;
     }
@@ -1539,14 +1649,19 @@
       alert("Planilha original restaurada. Clique em Salvar se quiser gravar de novo.");
     }
 
-    async function unlockWithPin(pin) {
-      if (!/^\d+$/.test(pin)) throw new Error("PIN inválido");
-      const salt = b64ToBuf(APP_GATE.salt);
-      const hash = await pinHashB64(pin, salt);
-      if (!timingSafeEqualB64(hash, APP_GATE.hash)) throw new Error("Senha incorreta");
-      cryptoKey = await deriveKey(pin, salt);
+    async function unlockWithPassword(password) {
+      const pass = String(password || "");
+      if (!pass) throw new Error("Senha vazia");
+      if (!currentAuthGate) await resolveAuthGate();
+      const gate = currentAuthGate || LEGACY_GATE;
+      const salt = b64ToBuf(gate.salt);
+      const hash = await pinHashB64(pass, salt, gate.iterations);
+      if (!timingSafeEqualB64(hash, gate.hash)) throw new Error("Senha incorreta");
+      cryptoKey = await deriveKey(pass, salt, gate.iterations);
+      sessionPassword = pass;
       sessionStorage.setItem(SESSION_FLAG, "1");
-      sessionStorage.setItem(SESSION_PIN, pin);
+      sessionStorage.setItem(SESSION_PIN, pass);
+      forcePasswordMigrate = !(gate.v >= 2);
       await loadDraftFromStorage();
     }
 
@@ -1554,33 +1669,99 @@
       const btn = document.getElementById("lock-submit");
       if (btn.disabled) return;
       showLockError("");
-      const pass = String(document.getElementById("lock-pass").value || "").replace(/\D/g, "").trim();
+      const pass = String(document.getElementById("lock-pass").value || "");
       btn.disabled = true;
       btn.textContent = "Verificando...";
       try {
-        if (!pass) {
+        if (!pass.trim()) {
           showLockError("Digite a senha.");
-          return;
-        }
-        if (!/^\d+$/.test(pass)) {
-          showLockError("A senha deve ter só números.");
           return;
         }
         if (!window.crypto || !window.crypto.subtle) {
           showLockError("Este navegador não suporta a proteção. Abra no Chrome.");
           return;
         }
-        await unlockWithPin(pass);
+        if (!currentAuthGate) await resolveAuthGate();
+        await unlockWithPassword(pass);
         enterApp();
+        if (forcePasswordMigrate) openChangePassword(true);
       } catch (err) {
         console.error(err);
-        showLockError("Senha incorreta. Confira os números e tente de novo.");
+        showLockError("Senha incorreta. Tente de novo.");
         cryptoKey = null;
         document.getElementById("lock-pass").value = "";
         document.getElementById("lock-pass").focus();
       } finally {
         btn.disabled = false;
         btn.textContent = "Entrar";
+      }
+    }
+
+    function openChangePassword(isMigrate) {
+      passwordModalMode = isMigrate ? "migrate" : "change";
+      forcePasswordMigrate = !!isMigrate;
+      document.getElementById("pw-modal-title").textContent = isMigrate
+        ? "Definir senha forte (obrigatório)"
+        : "Alterar senha";
+      document.getElementById("pw-modal-desc").textContent = isMigrate
+        ? "Sua senha antiga era fraca (6 dígitos). Defina uma senha com no mínimo 10 caracteres, incluindo letra e número."
+        : "Mínimo 10 caracteres, com letra e número.";
+      document.getElementById("pw-error").textContent = "";
+      document.getElementById("pw-new").value = "";
+      document.getElementById("pw-confirm").value = "";
+      document.getElementById("pw-cancel").style.display = isMigrate ? "none" : "";
+      document.getElementById("pw-modal").classList.remove("hidden");
+      setTimeout(() => document.getElementById("pw-new").focus(), 50);
+    }
+
+    function closePasswordModal() {
+      if (forcePasswordMigrate) {
+        alert("É necessário definir uma senha forte para continuar.");
+        return;
+      }
+      document.getElementById("pw-modal").classList.add("hidden");
+    }
+
+    async function submitNewPassword() {
+      const errEl = document.getElementById("pw-error");
+      errEl.textContent = "";
+      const a = String(document.getElementById("pw-new").value || "");
+      const b = String(document.getElementById("pw-confirm").value || "");
+      if (!isStrongPassword(a)) {
+        errEl.textContent = "Use no mínimo 10 caracteres, com pelo menos 1 letra e 1 número.";
+        return;
+      }
+      if (a !== b) {
+        errEl.textContent = "As senhas não coincidem.";
+        return;
+      }
+      if (!cryptoKey) {
+        errEl.textContent = "Desbloqueie o app primeiro.";
+        return;
+      }
+      try {
+        const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+        const salt = bufToB64(saltBytes);
+        const iterations = 250000;
+        const hash = await pinHashB64(a, saltBytes, iterations);
+        const meta = { salt, hash, iterations, v: 2 };
+        cryptoKey = await deriveKey(a, saltBytes, iterations);
+        sessionPassword = a;
+        sessionStorage.setItem(SESSION_PIN, a);
+        saveAuthMeta(meta);
+        forcePasswordMigrate = false;
+        const result = await persistEncrypted();
+        document.getElementById("pw-modal").classList.add("hidden");
+        hasUnsavedChanges = false;
+        updateSaveStatus();
+        if (result.cloud === false) {
+          alert("Senha atualizada neste aparelho. A nuvem falhou — toque em Sincronizar depois.");
+        } else {
+          alert("Senha forte definida. Use-a em todos os aparelhos.");
+        }
+      } catch (err) {
+        console.error(err);
+        errEl.textContent = "Não foi possível gravar a nova senha.";
       }
     }
 
@@ -1597,6 +1778,7 @@
       if (hasUnsavedChanges && !confirm("Há alterações não salvas. Sair mesmo assim?")) return;
       cryptoKey = null;
       appData = {};
+      sessionPassword = "";
       sessionStorage.removeItem(SESSION_FLAG);
       sessionStorage.removeItem(SESSION_PIN);
       hasUnsavedChanges = false;
@@ -1613,7 +1795,6 @@
       const iconShow = document.getElementById("eye-icon-show");
       const iconHide = document.getElementById("eye-icon-hide");
       if (!el || !eye) return;
-
       const showing = !el.classList.contains("masked");
       if (showing) {
         el.classList.add("masked");
@@ -1628,46 +1809,16 @@
         iconShow.classList.add("hidden");
         iconHide.classList.remove("hidden");
       }
-      el.setAttribute("inputmode", "numeric");
-      el.setAttribute("pattern", "[0-9]*");
       el.focus();
     }
 
     async function bootstrapAuth() {
       const el = document.getElementById("lock-pass");
-      let autoUnlockTimer = null;
+      el.classList.add("masked");
+      el.setAttribute("type", "text");
+      el.setAttribute("autocomplete", "current-password");
+      el.removeAttribute("maxlength");
 
-      el.setAttribute("type", "tel");
-      el.setAttribute("inputmode", "numeric");
-      el.setAttribute("pattern", "[0-9]*");
-      el.setAttribute("maxlength", "6");
-      el.setAttribute("autocomplete", "off");
-
-      function tryAutoUnlock() {
-        const digits = String(el.value || "").replace(/\D/g, "").slice(0, 6);
-        if (el.value !== digits) el.value = digits;
-        if (digits.length < 6) return;
-        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
-        // No celular o 6º dígito precisa “assentar” antes de validar
-        autoUnlockTimer = setTimeout(() => {
-          autoUnlockTimer = null;
-          const pass = String(el.value || "").replace(/\D/g, "").slice(0, 6);
-          if (pass.length !== 6) return;
-          try { el.blur(); } catch {}
-          submitLock();
-        }, 80);
-      }
-
-      el.addEventListener("focus", () => {
-        el.setAttribute("inputmode", "numeric");
-        el.setAttribute("pattern", "[0-9]*");
-        el.setAttribute("type", "tel");
-      });
-
-      el.addEventListener("input", tryAutoUnlock);
-      el.addEventListener("keyup", tryAutoUnlock);
-      el.addEventListener("change", tryAutoUnlock);
-      el.addEventListener("paste", () => setTimeout(tryAutoUnlock, 0));
       el.addEventListener("keydown", e => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -1675,11 +1826,26 @@
         }
       });
 
+      el.addEventListener("input", () => {
+        if (currentAuthGate && currentAuthGate.v >= 2) return;
+        const digits = String(el.value || "").replace(/D/g, "");
+        if (digits.length === 6 && digits === el.value) {
+          setTimeout(() => submitLock(), 80);
+        }
+      });
+
+      try {
+        await resolveAuthGate();
+      } catch {
+        currentAuthGate = { ...LEGACY_GATE };
+      }
+
       const sessionPin = sessionStorage.getItem(SESSION_PIN);
       if (sessionStorage.getItem(SESSION_FLAG) === "1" && sessionPin) {
         try {
-          await unlockWithPin(sessionPin);
+          await unlockWithPassword(sessionPin);
           enterApp();
+          if (forcePasswordMigrate) openChangePassword(true);
           return;
         } catch {
           sessionStorage.removeItem(SESSION_FLAG);
@@ -2283,7 +2449,7 @@
       pullCloudIfVisible();
     }, 30 * 1000);
 
-    const APP_VERSION = 21;
+    const APP_VERSION = 22;
 
     if ("serviceWorker" in navigator) {
       let refreshing = false;
