@@ -708,21 +708,26 @@
     <div class="lock-card">
       <h1 id="lock-title">Desbloquear</h1>
       <p id="lock-desc">Digite a senha para abrir o orçamento.</p>
-      <div id="lock-login">
+      <form id="lock-login" autocomplete="off" onsubmit="event.preventDefault(); submitLock(); return false;">
         <label for="lock-pass" id="lock-pass-label">Senha</label>
         <div class="pin-wrap">
           <input
             type="text"
             id="lock-pass"
+            name="orc-gate"
             class="masked"
             inputmode="text"
-            autocomplete="current-password"
+            autocomplete="off"
             enterkeyhint="done"
             placeholder="Sua senha"
             aria-label="Senha"
             autocapitalize="off"
             autocorrect="off"
             spellcheck="false"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            data-bwignore="true"
+            data-form-type="other"
           >
           <button type="button" class="eye-btn" id="lock-eye" onclick="togglePinVisibility(event)" aria-label="Mostrar senha" aria-pressed="false">
             <svg id="eye-icon-show" viewBox="0 0 24 24" aria-hidden="true">
@@ -737,11 +742,11 @@
             </svg>
           </button>
         </div>
-      </div>
-      <div class="lock-error" id="lock-error"></div>
-      <div class="lock-actions">
-        <button class="save" id="lock-submit" onclick="submitLock()">Entrar</button>
-      </div>
+        <div class="lock-error" id="lock-error"></div>
+        <div class="lock-actions">
+          <button type="submit" class="save" id="lock-submit">Entrar</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -813,7 +818,7 @@
           <button class="secondary" onclick="openChangePassword()">Alterar senha</button>
         </div>
         <p class="settings-hint" id="sync-status-line" style="margin-top:0.6rem">Status: —</p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 23 · Out/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 24 · Out/2026</p>
       </div>
 
       <footer>Salvar grava neste aparelho e sincroniza na nuvem</footer>
@@ -918,11 +923,11 @@
           </p>
           <div class="field" style="margin-bottom:0.75rem">
             <label for="pw-new">Nova senha</label>
-            <input type="password" id="pw-new" autocomplete="new-password" style="width:100%;padding:0.65rem;margin-top:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit">
+            <input type="text" id="pw-new" name="orc-pw-new" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other" style="width:100%;padding:0.65rem;margin-top:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;-webkit-text-security:disc">
           </div>
           <div class="field">
             <label for="pw-confirm">Confirmar senha</label>
-            <input type="password" id="pw-confirm" autocomplete="new-password" style="width:100%;padding:0.65rem;margin-top:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit">
+            <input type="text" id="pw-confirm" name="orc-pw-confirm" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other" style="width:100%;padding:0.65rem;margin-top:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;-webkit-text-security:disc">
           </div>
           <div class="lock-error" id="pw-error" style="margin-top:0.75rem"></div>
         </div>
@@ -1816,7 +1821,8 @@
       const el = document.getElementById("lock-pass");
       el.classList.add("masked");
       el.setAttribute("type", "text");
-      el.setAttribute("autocomplete", "current-password");
+      el.setAttribute("autocomplete", "off");
+      el.setAttribute("name", "orc-gate");
       el.removeAttribute("maxlength");
 
       el.addEventListener("keydown", e => {
@@ -2449,7 +2455,7 @@
       pullCloudIfVisible();
     }, 30 * 1000);
 
-    const APP_VERSION = 23;
+    const APP_VERSION = 24;
 
     if ("serviceWorker" in navigator) {
       let refreshing = false;
