@@ -1396,7 +1396,7 @@
       lastCloudError = "";
       try {
         const res = await fetch(endpoint, {
-          method: "PATCH",
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             iv: payloadWithMeta.iv,
