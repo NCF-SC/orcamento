@@ -818,7 +818,7 @@
           <button class="secondary" onclick="openChangePassword()">Alterar senha</button>
         </div>
         <p class="settings-hint" id="sync-status-line" style="margin-top:0.6rem">Status: —</p>
-        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 24 · Out/2026</p>
+        <p class="settings-hint" style="opacity:0.55;margin-top:0.5rem">Versão 25 · Nov/2026</p>
       </div>
 
       <footer>Salvar grava neste aparelho e sincroniza na nuvem</footer>
@@ -1452,18 +1452,25 @@
     }
 
     async function resolveAuthGate() {
-      const local = getStoredAuthMeta();
-      if (local && local.v >= 2) {
-        currentAuthGate = local;
-        return local;
-      }
+      // Nuvem manda: se o blob remoto não tem auth v2, estamos em modo recuperação/legado
+      // e a meta v2 antiga no aparelho não pode bloquear o PIN.
       try {
         const remote = await fetchCloudPayload();
         if (remote && remote.auth && remote.auth.v >= 2) {
           saveAuthMeta(remote.auth);
           return remote.auth;
         }
+        if (remote && remote.iv && remote.data) {
+          try { localStorage.removeItem(AUTH_META_KEY); } catch {}
+          currentAuthGate = { ...LEGACY_GATE };
+          return currentAuthGate;
+        }
       } catch {}
+      const local = getStoredAuthMeta();
+      if (local && local.v >= 2) {
+        currentAuthGate = local;
+        return local;
+      }
       currentAuthGate = { ...LEGACY_GATE };
       return currentAuthGate;
     }
@@ -1654,20 +1661,34 @@
       alert("Planilha original restaurada. Clique em Salvar se quiser gravar de novo.");
     }
 
-    async function unlockWithPassword(password) {
-      const pass = String(password || "");
-      if (!pass) throw new Error("Senha vazia");
-      if (!currentAuthGate) await resolveAuthGate();
-      const gate = currentAuthGate || LEGACY_GATE;
+    async function tryUnlockWithGate(pass, gate) {
       const salt = b64ToBuf(gate.salt);
       const hash = await pinHashB64(pass, salt, gate.iterations);
-      if (!timingSafeEqualB64(hash, gate.hash)) throw new Error("Senha incorreta");
+      if (!timingSafeEqualB64(hash, gate.hash)) return false;
       cryptoKey = await deriveKey(pass, salt, gate.iterations);
+      currentAuthGate = gate;
       sessionPassword = pass;
       sessionStorage.setItem(SESSION_FLAG, "1");
       sessionStorage.setItem(SESSION_PIN, pass);
       forcePasswordMigrate = !(gate.v >= 2);
+      if (forcePasswordMigrate) {
+        try { localStorage.removeItem(AUTH_META_KEY); } catch {}
+      }
       await loadDraftFromStorage();
+      return true;
+    }
+
+    async function unlockWithPassword(password) {
+      const pass = String(password || "");
+      if (!pass) throw new Error("Senha vazia");
+      if (!currentAuthGate) await resolveAuthGate();
+      const primary = currentAuthGate || LEGACY_GATE;
+      if (await tryUnlockWithGate(pass, primary)) return;
+      // Fallback: PIN legado (recuperação), mesmo se o aparelho ainda tiver meta v2 antiga
+      if (primary !== LEGACY_GATE && primary.v >= 2) {
+        if (await tryUnlockWithGate(pass, { ...LEGACY_GATE })) return;
+      }
+      throw new Error("Senha incorreta");
     }
 
     async function submitLock() {
@@ -2455,7 +2476,7 @@
       pullCloudIfVisible();
     }, 30 * 1000);
 
-    const APP_VERSION = 24;
+    const APP_VERSION = 25;
 
     if ("serviceWorker" in navigator) {
       let refreshing = false;
